@@ -1,0 +1,55 @@
+add-apt-repository ppa:ubuntu-lxc/lxd-stable -y
+
+got error:
+fix: 
+http://lgogua.blogspot.com/2014/03/kali-linux-fix-problem-add-apt.html
+
+
+apt-get update
+ok
+
+apt-get -y install linux-image-extra-$(uname -r)
+skip
+
+apt-get -y install linux-image-extra-virtual
+skip
+
+apt-get -y install curl
+ok
+
+apt-get -y install git
+ok
+
+apt-get -y install docker.io
+ok
+
+apt-get -y install docker-engine
+install docker-ce instead
+
+apt-get -y install cgroup-tools cgroup-bin
+ok
+
+apt-get -y install python-pip
+ok
+
+apt-get -y install python2.7-dev
+ok
+
+pip install netifaces
+ok
+
+pip install rethinkdb
+ok
+
+pip install tornado
+ok
+
+wget -q -O /tmp/go1.11.4.linux-amd64.tar.gz https://dl.google.com/go/go1.11.4.linux-amd64.tar.gz
+instead run wget -q -O /tmp/go1.11.4.linux-arm64.tar.gz https://dl.google.com/go/go1.11.4.linux-arm64.tar.gz
+
+tar -C /usr/local -xzf /tmp/go1.11.4.linux-amd64.tar.gz
+instead run tar -C /usr/local -xzf /tmp/go1.11.4.linux-arm64.tar.gz
+
+ln -s /usr/local/go/bin/go /usr/bin/go
+
+service docker restart
