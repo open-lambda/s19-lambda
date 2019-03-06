@@ -1,50 +1,55 @@
+#add-apt-repository ppa:ubuntu-lxc/lxd-stable -y
+#got error:
+#fix: 
+#http://lgogua.blogspot.com/2014/03/kali-linux-fix-problem-add-apt.html
+
+wget http://blog.anantshri.info/content/uploads/2010/09/add-apt-repository.sh.txt
+cp add-apt-repository.sh.txt /usr/sbin/add-apt-repository
+chmod o+x /usr/sbin/add-apt-repository
+chown root:root /usr/sbin/add-apt-repository
 add-apt-repository ppa:ubuntu-lxc/lxd-stable -y
 
-got error:
-fix: 
-http://lgogua.blogspot.com/2014/03/kali-linux-fix-problem-add-apt.html
-
-
 apt-get update
-ok
+#ok
 
-apt-get -y install linux-image-extra-$(uname -r)
-skip
+#apt-get -y install linux-image-extra-$(uname -r)
+#skip
 
-apt-get -y install linux-image-extra-virtual
-skip
+#apt-get -y install linux-image-extra-virtual
+#skip
 
 apt-get -y install curl
-ok
+#ok
 
 apt-get -y install git
-ok
+#ok
 
 apt-get -y install docker.io
-ok
+#ok
 
-apt-get -y install docker-engine
-install docker-ce instead
+#apt-get -y install docker-engine
+#install docker-ce instead
+apt-get -y install docker-ce
 
 apt-get -y install cgroup-tools cgroup-bin
-ok
+#ok
 
 apt-get -y install python-pip
-ok
+#ok
 
 apt-get -y install python2.7-dev
-ok
+#ok
 
 pip install netifaces
-ok
+#ok
 
 pip install rethinkdb
-ok
+#ok
 
 pip install tornado
-ok
+#ok
 
-INSTALLING GO:
+#INSTALLING GO:
 wget http://dave.cheney.net/paste/go-linux-arm-bootstrap-c788a8e.tbz
 tar xvjf go-linux-arm-bootstrap-c788a8e.tbz
 su
