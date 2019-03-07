@@ -21,6 +21,8 @@ import (
 	"github.com/open-lambda/open-lambda/worker/config"
 	"github.com/open-lambda/open-lambda/worker/server"
 	"github.com/urfave/cli"
+
+	"github.com/open-lambda/s19-lambda/balancer"
 )
 
 var client *docker.Client
@@ -452,7 +454,7 @@ func load_balancer_exec(ctx *cli.Context) error {
 		return nil
 	}
 
-	//balancer.Main()
+	balancer.Main()
 	return nil
 }
 

@@ -13,4 +13,5 @@ require (
 	golang.org/x/net v0.0.0-20190110044637-be1c187aa6c6 // indirect
 	golang.org/x/text v0.3.0 // indirect
 	gopkg.in/ini.v1 v1.41.0 // indirect
+	gopkg.in/yaml.v2 v2.2.2 // indirect
 )

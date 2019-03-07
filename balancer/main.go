@@ -1,4 +1,4 @@
-package load_balancer
+package balancer
 
 import (
     "net/http"
@@ -21,4 +21,8 @@ func main() {
         LogErrAndCrash("Make sure the port is available and not reserved")
     }
     LogInfo("Listening to requests on port: " + strconv.Itoa(proxy.Port))
+}
+
+func Main() {
+    main()
 }
