@@ -14,8 +14,8 @@ import (
 	"syscall"
 	"time"
 
-	docker "github.com/fsouza/go-dockerclient"
-	minio "github.com/minio/minio-go"
+	"github.com/fsouza/go-dockerclient"
+	"github.com/minio/minio-go"
 	dutil "github.com/open-lambda/open-lambda/worker/dockerutil"
 
 	"github.com/open-lambda/open-lambda/worker/config"
@@ -439,6 +439,49 @@ func workers(ctx *cli.Context) error {
 
 		fmt.Printf("Started worker: pid %d, port %s, log at %s\n", proc.Pid, conf.Worker_port, log_path)
 	}
+
+	return nil
+}
+
+// load_balancer_exec corresponds to the "load-balancer-exec" command of the admin tool.
+func load_balancer_exec(ctx *cli.Context) error {
+	config_file := ctx.String("config")
+
+	if config_file == "" {
+		fmt.Printf("Please specify a config YAML file\n")
+		return nil
+	}
+
+	//balancer.Main()
+	return nil
+}
+
+// load_balancer corresponds to the "load-balancer" command of the admin tool.
+func load_balancer(ctx *cli.Context) error {
+	cluster := parseCluster(ctx.String("cluster"), true)
+	config_file := ctx.String("config")
+
+	log_path := logPath(cluster, "load-balancer.out")
+	f, err := os.Create(log_path)
+	if err != nil {
+		return err
+	}
+	attr := os.ProcAttr{
+		Files: []*os.File{nil, f, f},
+	}
+	cmd := []string{
+		os.Args[0],
+		"load-balancer-exec",
+		"-config=" + config_file,
+	}
+	proc, err := os.StartProcess(os.Args[0], cmd, &attr)
+
+	pidpath := pidPath(cluster, "load-balancer")
+	if err := ioutil.WriteFile(pidpath, []byte(fmt.Sprintf("%d", proc.Pid)), 0644); err != nil {
+		return err
+	}
+
+	fmt.Printf("Started load balancer: pid %d, log at %s\n", proc.Pid, log_path)
 
 	return nil
 }
@@ -901,6 +944,33 @@ OPTIONS:
 				},
 			},
 			Action: nginx,
+		},
+		cli.Command{
+			Name:        "load-balancer-exec",
+			Usage:       "Start load balancing server for distributed OpenLambda",
+			UsageText:   "admin load-balancer -c|--config=FILE",
+			Description: "Start load balancing server as stand-alone process",
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  "config, c",
+					Usage: "Load configuration for load balancer from file",
+				},
+			},
+			Action: load_balancer_exec,
+		},
+		cli.Command{
+			Name:        "load-balancer",
+			Usage:       "Start load balancing server for distributed OpenLambda in cluster mode",
+			UsageText:   "admin load-balancer --cluster=NAME -c|--config=FILE",
+			Description: "Start load balancing server in cluster mode",
+			Flags: []cli.Flag{
+				clusterFlag,
+				cli.StringFlag{
+					Name:  "config, c",
+					Usage: "Load configuration for load balancer from file",
+				},
+			},
+			Action: load_balancer,
 		},
 		cli.Command{
 			Name:        "registry",
