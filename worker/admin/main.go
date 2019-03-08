@@ -219,9 +219,11 @@ func status(ctx *cli.Context) error {
 		return err
 	}
 
+
+	// TODO support load balancer ping
 	fmt.Printf("Worker Pings:\n")
 	for _, fi := range logs {
-		if strings.HasSuffix(fi.Name(), ".pid") {
+		if strings.HasPrefix(fi.Name(), "worker") && strings.HasSuffix(fi.Name(), ".pid") {
 			name := fi.Name()[:len(fi.Name())-4]
 			c, err := config.ParseConfig(configPath(cluster, name))
 			if err != nil {

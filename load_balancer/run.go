@@ -15,6 +15,7 @@ func Run(config_file string) {
       LogErrAndCrash(err.Error())
     }
     http.HandleFunc("/", proxy.handler)
+    http.HandleFunc("/status", proxy.statusHandler)
     err = http.ListenAndServe(":" + strconv.Itoa(proxy.Port), nil)
     if err != nil {
         LogErr("Failed to bind to port " + strconv.Itoa(proxy.Port))
