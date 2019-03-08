@@ -5,10 +5,10 @@ import (
     "strconv"
 )
 
-func main() {
+func main(config_file string) {
     LogInfo("Spinning up load balancer...")
-    LogInfo("Reading Config.yml...")
-    proxy, err := ReadConfig()
+    LogInfo("Reading config file...")
+    proxy, err := ReadConfig(config_file)
 
     if err != nil {
       LogErr("An error occurred while trying to parse config.yml")
@@ -23,6 +23,6 @@ func main() {
     LogInfo("Listening to requests on port: " + strconv.Itoa(proxy.Port))
 }
 
-func Main() {
-    main()
+func Main(config_file string) {
+    main(config_file)
 }

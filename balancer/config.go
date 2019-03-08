@@ -69,10 +69,10 @@ func setDefaultValues(proxy *Proxy) {
   }
 }
 
-func ReadConfig() (Proxy, error) {
+func ReadConfig(config_file string) (Proxy, error) {
   proxy := Proxy{}
 
-  file, err := ioutil.ReadFile(configName)
+  file, err := ioutil.ReadFile(config_file)
   if err != nil {
     return proxy, err
   }

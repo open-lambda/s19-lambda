@@ -37,6 +37,7 @@
 
 *~
 *.swp
+*.swo
 
 .vagrant
 .sock
@@ -53,3 +54,4 @@
 /lambda/fdclient
 /sock/sock-init
 /testing/test-cluster
+/my-cluster

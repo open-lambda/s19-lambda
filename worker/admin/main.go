@@ -454,7 +454,7 @@ func load_balancer_exec(ctx *cli.Context) error {
 		return nil
 	}
 
-	balancer.Main()
+	balancer.Main(config_file)
 	return nil
 }
 
