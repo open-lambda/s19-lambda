@@ -22,7 +22,7 @@ import (
 	"github.com/open-lambda/open-lambda/worker/server"
 	"github.com/urfave/cli"
 
-	"github.com/open-lambda/s19-lambda/balancer"
+	"github.com/open-lambda/s19-lambda/load_balancer"
 )
 
 var client *docker.Client
@@ -454,7 +454,7 @@ func load_balancer_exec(ctx *cli.Context) error {
 		return nil
 	}
 
-	balancer.Main(config_file)
+	balancer.Run(config_file)
 	return nil
 }
 
@@ -463,7 +463,7 @@ func load_balancer(ctx *cli.Context) error {
 	cluster := parseCluster(ctx.String("cluster"), true)
 	config_file := ctx.String("config")
 
-	log_path := logPath(cluster, "load-balancer.out")
+	log_path := logPath(cluster, "load_balancer.out")
 	f, err := os.Create(log_path)
 	if err != nil {
 		return err
@@ -478,7 +478,7 @@ func load_balancer(ctx *cli.Context) error {
 	}
 	proc, err := os.StartProcess(os.Args[0], cmd, &attr)
 
-	pidpath := pidPath(cluster, "load-balancer")
+	pidpath := pidPath(cluster, "load_balancer")
 	if err := ioutil.WriteFile(pidpath, []byte(fmt.Sprintf("%d", proc.Pid)), 0644); err != nil {
 		return err
 	}
@@ -632,30 +632,48 @@ func kill(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
+
 	for _, fi := range logs {
-		if strings.HasSuffix(fi.Name(), ".pid") {
-			data, err := ioutil.ReadFile(logPath(cluster, fi.Name()))
+		if strings.HasPrefix(fi.Name(), "load_balancer") && strings.HasSuffix(fi.Name(), ".pid") {
+			err := kill_process(cluster, "load balancer", fi)
 			if err != nil {
 				return err
 			}
-			pidstr := string(data)
-			pid, err := strconv.Atoi(pidstr)
+		}
+	}
+	for _, fi := range logs {
+		if strings.HasPrefix(fi.Name(), "worker") && strings.HasSuffix(fi.Name(), ".pid") {
+			err := kill_process(cluster, "worker", fi)
 			if err != nil {
 				return err
-			}
-			fmt.Printf("Kill worker process with PID %d\n", pid)
-			p, err := os.FindProcess(pid)
-			if err != nil {
-				fmt.Printf("%s\n", err.Error())
-				fmt.Printf("Failed to find worker process with PID %d.  May require manual cleanup.\n", pid)
-			}
-			if err := p.Signal(syscall.SIGINT); err != nil {
-				fmt.Printf("%s\n", err.Error())
-				fmt.Printf("Failed to kill process with PID %d.  May require manual cleanup.\n", pid)
 			}
 		}
 	}
 
+	return nil
+}
+
+func kill_process(cluster string, group string, fi os.FileInfo) (err error) {
+	data, err := ioutil.ReadFile(logPath(cluster, fi.Name()))
+	if err != nil {
+		return err
+	}
+	pidstr := string(data)
+	pid, err := strconv.Atoi(pidstr)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Kill %s process with PID %d\n", group, pid)
+	p, err := os.FindProcess(pid)
+	if err != nil {
+		fmt.Printf("%s\n", err.Error())
+		fmt.Printf("Failed to find %s process with PID %d.  May require manual cleanup.\n", group, pid)
+	}
+	if err := p.Signal(syscall.SIGINT); err != nil {
+		fmt.Printf("%s\n", err.Error())
+		fmt.Printf("Failed to kill %s process with PID %d.  May require manual cleanup.\n", group, pid)
+	}
 	return nil
 }
 

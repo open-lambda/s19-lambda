@@ -5,6 +5,7 @@ import (
   "strings"
   "io/ioutil"
   "gopkg.in/yaml.v2"
+  "encoding/json"
 )
 
 const configName string = "config.yml"
@@ -76,8 +77,13 @@ func ReadConfig(config_file string) (Proxy, error) {
   if err != nil {
     return proxy, err
   }
+  
+  if strings.HasSuffix(config_file, ".yml") {
+    err = yaml.Unmarshal(file, &proxy)
+  } else {
+    err = json.Unmarshal(file, &proxy)
+  }
 
-  err = yaml.Unmarshal(file, &proxy)
   if err != nil {
     return proxy, err
   }
