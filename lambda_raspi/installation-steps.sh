@@ -1,8 +1,8 @@
+sudo su
 #add-apt-repository ppa:ubuntu-lxc/lxd-stable -y
 #got error:
 #fix: 
 #http://lgogua.blogspot.com/2014/03/kali-linux-fix-problem-add-apt.html
-
 wget http://blog.anantshri.info/content/uploads/2010/09/add-apt-repository.sh.txt
 cp add-apt-repository.sh.txt /usr/sbin/add-apt-repository
 chmod o+x /usr/sbin/add-apt-repository
@@ -52,7 +52,7 @@ pip install tornado
 #INSTALLING GO:
 wget http://dave.cheney.net/paste/go-linux-arm-bootstrap-c788a8e.tbz
 tar xvjf go-linux-arm-bootstrap-c788a8e.tbz
-su
+
 mv go-linux-arm-bootstrap /root
 mv go-linux-arm-bootstrap go1.4
 exit
@@ -66,8 +66,11 @@ tar -C /usr/local -xzf /tmp/go1.11.4.linux-arm64.tar.gz
 #instead run tar -C /usr/local -xzf /tmp/go1.11.4.linux-arm64.tar.gz
 
 cd /usr/local/go/src
-sudo ./make.bash
+./make.bash
 
 ln -s /usr/local/go/bin/go /usr/bin/go
 
 service docker restart
+
+echo " cgroup_enable=memory cgroup_memory=1" >> /boot/cmdline.txt
+reboot
