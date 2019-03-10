@@ -1,3 +1,4 @@
+sudo su
 #add-apt-repository ppa:ubuntu-lxc/lxd-stable -y
 #got error:
 #fix: 
@@ -71,3 +72,6 @@ sudo ./make.bash
 ln -s /usr/local/go/bin/go /usr/bin/go
 
 service docker restart
+
+echo " cgroup_enable=memory cgroup_memory=1" >> /boot/cmdline.txt
+reboot
