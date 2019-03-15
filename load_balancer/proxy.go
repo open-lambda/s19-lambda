@@ -55,6 +55,9 @@ func (proxy Proxy)chooseServer(ignoreList []string) *Server {
 var RRServerIdx int = 0
 
 func (proxy Proxy)roundRobinChooseServer(ignoreList []string) *Server {
+	if len(proxy.Servers) == 0 {
+		return nil
+	}
 	firstAttempt := true
 	nextServerIndex := (RRServerIdx + 1) % len(proxy.Servers)
 	for firstAttempt || (nextServerIndex != (RRServerIdx + 1)) {
@@ -161,7 +164,7 @@ func (proxy Proxy)handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (proxy Proxy)statusHandler(w http.ResponseWriter, r *http.Request) {
-	LogInfo("Receive request to %s" + r.URL.Path)
+	LogInfo("Receive request to " + r.URL.Path)
 
 	wbody := []byte("ready\n")
 	if _, err := w.Write(wbody); err != nil {

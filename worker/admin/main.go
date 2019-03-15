@@ -151,6 +151,13 @@ func newCluster(ctx *cli.Context) error {
 	if err := os.Mkdir(path.Join(cluster, "config"), 0700); err != nil {
 		return err
 	}
+
+	load_balancer := &balancer.Proxy{}
+	balancer.SetDefaultValues(load_balancer)
+	if err := balancer.SaveConfig(load_balancer, configPath(cluster, "load_balancer")); err != nil {
+		return err
+	}
+
 	c := &config.Config{
 		Worker_port:    "?",
 		Cluster_name:   cluster,
@@ -171,8 +178,9 @@ func newCluster(ctx *cli.Context) error {
 	dump_sock_image(ctx)
 
 	fmt.Printf("Cluster Directory: %s\n\n", cluster)
+	fmt.Printf("Load Balancer Defaults: \n%s\n\n", balancer.DumpStr(load_balancer))
 	fmt.Printf("Worker Defaults: \n%s\n\n", c.DumpStr())
-	fmt.Printf("You may now start a cluster using the \"workers\" command\n")
+	fmt.Printf("You may now start a load balancer using the \"load-balancer\" command, and start worker(s) using the \"workers\" command\n")
 
 	return nil
 }
@@ -219,8 +227,35 @@ func status(ctx *cli.Context) error {
 		return err
 	}
 
+	fmt.Printf("Load Balancer Ping:\n")
+	for _, fi := range logs {
+		// if strings.HasPrefix(fi.Name(), "load_balancer") && strings.HasSuffix(fi.Name(), ".pid") {
+		if fi.Name() == "load_balancer.pid" {
+			name := fi.Name()[:len(fi.Name())-4]
+			load_balancer, err := balancer.ReadConfig(configPath(cluster, name))
+			if err != nil {
+				return err
+			}
 
-	// TODO support load balancer ping
+			url := fmt.Sprintf("http://localhost:%d/status", load_balancer.Port)
+			response, err := http.Get(url)
+			if err != nil {
+				fmt.Printf("  Could not send GET to %s\n", url)
+				pingErr = true
+				continue
+			}
+			defer response.Body.Close()
+			body, err := ioutil.ReadAll(response.Body)
+			if err != nil {
+				fmt.Printf("  Failed to read body from GET to %s\n", url)
+				pingErr = true
+				continue
+			}
+			fmt.Printf("  %s => %s [%s]\n", url, body, response.Status)
+		}
+	}
+
+	fmt.Printf("\n")
 	fmt.Printf("Worker Pings:\n")
 	for _, fi := range logs {
 		if strings.HasPrefix(fi.Name(), "worker") && strings.HasSuffix(fi.Name(), ".pid") {
@@ -269,7 +304,7 @@ func status(ctx *cli.Context) error {
 	fmt.Printf("\n")
 
 	if pingErr {
-		return fmt.Errorf("At least one worker failed the status check")
+		return fmt.Errorf("At least one load balancer/worker failed the status check")
 	}
 
 	return nil
@@ -447,26 +482,29 @@ func workers(ctx *cli.Context) error {
 	return nil
 }
 
-// load_balancer_exec corresponds to the "load-balancer-exec" command of the admin tool.
-func load_balancer_exec(ctx *cli.Context) error {
-	config_file := ctx.String("config")
+func loadBalancerExec(ctx *cli.Context) error {
+	configFile := ctx.String("config")
 
-	if config_file == "" {
-		fmt.Printf("Please specify a config YAML file\n")
+	if configFile == "" {
+		fmt.Printf("Please specify a config file\n")
 		return nil
 	}
 
-	balancer.Run(config_file)
+	balancer.Run(configFile)
 	return nil
 }
 
 // load_balancer corresponds to the "load-balancer" command of the admin tool.
-func load_balancer(ctx *cli.Context) error {
+func loadBalancer(ctx *cli.Context) error {
 	cluster := parseCluster(ctx.String("cluster"), true)
-	config_file := ctx.String("config")
-
-	log_path := logPath(cluster, "load_balancer.out")
-	f, err := os.Create(log_path)
+	port := ctx.Int("port")
+	configFile := configPath(cluster, "load_balancer")
+	// allow the user to specify the port of the load balancer with the command
+    balancerConfig, err := balancer.ReadConfig(configFile)
+	balancerConfig.Port = port
+	balancer.SaveConfig(balancerConfig, configFile)
+	logPath := logPath(cluster, "load_balancer.out")
+	f, err := os.Create(logPath)
 	if err != nil {
 		return err
 	}
@@ -476,7 +514,7 @@ func load_balancer(ctx *cli.Context) error {
 	cmd := []string{
 		os.Args[0],
 		"load-balancer-exec",
-		"-config=" + config_file,
+		"-config=" + configFile,
 	}
 	proc, err := os.StartProcess(os.Args[0], cmd, &attr)
 
@@ -485,7 +523,7 @@ func load_balancer(ctx *cli.Context) error {
 		return err
 	}
 
-	fmt.Printf("Started load balancer: pid %d, log at %s\n", proc.Pid, log_path)
+	fmt.Printf("Started load balancer: pid %d, log at %s\n", proc.Pid, logPath)
 
 	return nil
 }
@@ -969,30 +1007,30 @@ OPTIONS:
 		},
 		cli.Command{
 			Name:        "load-balancer-exec",
-			Usage:       "Start load balancing server for distributed OpenLambda",
+			Usage:       "Start load balancing server for distributed OpenLambda with a YAML/JSON config file",
 			UsageText:   "admin load-balancer -c|--config=FILE",
-			Description: "Start load balancing server as stand-alone process",
+			Description: "Start load balancing server for distributed OpenLambda with a YAML/JSON config file",
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:  "config, c",
 					Usage: "Load configuration for load balancer from file",
 				},
 			},
-			Action: load_balancer_exec,
+			Action: loadBalancerExec,
 		},
 		cli.Command{
 			Name:        "load-balancer",
-			Usage:       "Start load balancing server for distributed OpenLambda in cluster mode",
-			UsageText:   "admin load-balancer --cluster=NAME -c|--config=FILE",
-			Description: "Start load balancing server in cluster mode",
+			Usage:       "Start load balancing server for distributed OpenLambda as a standalone process",
+			UsageText:   "admin load-balancer --cluster=NAME [-p|--port=PORT]",
+			Description: "Start load balancing server for distributed OpenLambda as a standalone process",
 			Flags: []cli.Flag{
 				clusterFlag,
 				cli.StringFlag{
-					Name:  "config, c",
-					Usage: "Load configuration for load balancer from file",
+					Name:  "port, p",
+					Usage: "Exposed port of the load balancer, all requests are first submitted to it",
 				},
 			},
-			Action: load_balancer,
+			Action: loadBalancer,
 		},
 		cli.Command{
 			Name:        "registry",
