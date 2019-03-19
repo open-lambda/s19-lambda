@@ -1,4 +1,3 @@
-sudo su
 #add-apt-repository ppa:ubuntu-lxc/lxd-stable -y
 #got error:
 #fix: 
@@ -53,10 +52,9 @@ pip install tornado
 #INSTALLING GO:
 wget http://dave.cheney.net/paste/go-linux-arm-bootstrap-c788a8e.tbz
 tar xvjf go-linux-arm-bootstrap-c788a8e.tbz
-su
+
 mv go-linux-arm-bootstrap /root
 mv go-linux-arm-bootstrap go1.4
-exit
 
 wget -q -O /tmp/go1.11.4.linux-arm64.tar.gz https://dl.google.com/go/go1.11.4.linux-arm64.tar.gz
 #wget -q -O /tmp/go1.11.4.linux-amd64.tar.gz https://dl.google.com/go/go1.11.4.linux-amd64.tar.gz
