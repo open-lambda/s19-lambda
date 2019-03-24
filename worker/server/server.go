@@ -160,9 +160,6 @@ func (s *Server) RunLambdaErr(w http.ResponseWriter, r *http.Request) *httpErr {
 		}
 	}
 
-	// notify history mechanism
-	lhh.HandlerAccess(urlParts[1], 0)
-
 	// forward to sandbox
 	var handler *handler.Handler
 	if h, err := s.handlers.Get(img); err != nil {
@@ -183,6 +180,9 @@ func (s *Server) RunLambdaErr(w http.ResponseWriter, r *http.Request) *httpErr {
 			err.Error(),
 			http.StatusInternalServerError)
 	}
+
+	// notify history mechanism
+	lhh.HandlerAccess(urlParts[1], CODES.PEEK)
 
 	return nil
 }
@@ -267,7 +267,7 @@ func Main(config_path string) {
 	http.Handle(RID_PATH, new (RidHttpHandler))
 
 	lhh = new (LambdaHistoryHandler)
-	lhh.Init(4);	// todo: make this configurable
+	lhh.Init(16);	// todo: make this configurable
 	http.Handle(HIST_PATH, lhh)
 
 	log.Printf("Execute handler by POSTing to localhost%s%s%s\n", port, RUN_PATH, "<lambda>")

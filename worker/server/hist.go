@@ -6,6 +6,14 @@ package server
 
 import ("fmt"; "math/rand"; "net/http"; "sync"; "time")
 
+// please, if some type of union or enum type exists in Go please replace this struct type with a union
+type Ops struct {
+	PEEK uint8	// PEEK mode: do a lookup, do not do any modifications 
+	OPEN uint8	// OPEN mode: do a lookup, and write corresponding handler entry's present to 1
+	CLOSE uint8	// CLOSE mode: do a lookup, and write corresponding handler entry's present to 0
+}
+var CODES = Ops{0, 1, 2} // bootleg enum, yeah!
+
 // DO NOT MODIFY ANY OF THESE FIELDS DIRECTLY,
 // Instead, go through HandlerAccess only
 type LambdaHistoryHandler struct {
@@ -53,7 +61,6 @@ func (hist * LambdaHistoryHandler) Init(size uint32) {
 // Returns: present or not present bit
 func (hist * LambdaHistoryHandler) HandlerAccess(hname string, code uint8) uint8 {
 	var ind uint32
-
 	// TODO: for better performance, change to hash map string lookup is slow 
 	for ind = 0; ind < hist.logSize; ind++ {
 		if(hist.hnames[ind] == hname) {
