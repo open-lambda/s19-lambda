@@ -181,6 +181,7 @@ func newCluster(ctx *cli.Context) error {
 	fmt.Printf("Load Balancer Defaults: \n%s\n\n", balancer.DumpStr(load_balancer))
 	fmt.Printf("Worker Defaults: \n%s\n\n", c.DumpStr())
 	fmt.Printf("You may now start a load balancer using the \"load-balancer\" command, and start worker(s) using the \"workers\" command\n")
+	fmt.Printf("Additionally, resource discovery is available through worker context path /rid\n")
 
 	return nil
 }

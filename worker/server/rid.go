@@ -1,9 +1,11 @@
-// WiscEdge RID
+// OpenLambda RID
 // A simple application that can be used
 // to get some basic system information or send it over http
 package server
 
-import ("os/exec"; "log"; "syscall"; "strconv"; "strings")
+import ("fmt"; "net/http"; "os/exec"; "log"; "syscall"; "strconv"; "strings")
+
+const ( FULL_NAME = "openlambda" )
 
 var s syscall.Sysinfo_t
 
@@ -27,10 +29,35 @@ func nproc() uint64 {
 
 func sysinf_update() {
 	if syscall.Sysinfo(&s) != nil {
-		log.Fatal("wiscedge-rid: An error has occurred while attempting to gather system information");
+		log.Fatal(FULL_NAME + ": An error has occurred while attempting to gather system information");
 	}
 }
 
 func mem() uint64 {
 	return s.Freeram
+}
+
+/* RID Http Handler
+ * -
+ * RID gives information about the machine that is currently hosting this
+ * instance of OpenLambda.
+ */
+type RidHttpHandler struct {
+}
+
+func (rid * RidHttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
+	req.ParseForm()
+	param := req.Form.Get("query")
+	sysinf_update()
+
+	for i := 0; i < len(param); i++ {
+		if param[i] == 'm' {
+			fmt.Fprintf(resp, "%d\n", mem())
+		}
+
+		if param[i] == 'p' {
+			fmt.Fprintf(resp, "%d\n", nproc())
+		}
+
+	}
 }
