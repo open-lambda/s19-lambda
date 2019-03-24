@@ -20,6 +20,7 @@ import (
 const (
 	RUN_PATH    = "/runLambda/"
 	STATUS_PATH = "/status"
+	RID_PATH = "/rid"
 )
 
 // Server is a worker server that listens to run lambda requests and forward
@@ -257,6 +258,7 @@ func Main(config_path string) {
 	port := fmt.Sprintf(":%s", conf.Worker_port)
 	http.HandleFunc(RUN_PATH, server.RunLambda)
 	http.HandleFunc(STATUS_PATH, server.Status)
+	http.Handle(RID_PATH, new (RidHttpHandler))
 
 	log.Printf("Execute handler by POSTing to localhost%s%s%s\n", port, RUN_PATH, "<lambda>")
 	log.Printf("Get status by sending request to localhost%s%s\n", port, STATUS_PATH)
