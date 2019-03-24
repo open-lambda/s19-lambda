@@ -21,6 +21,7 @@ const (
 	RUN_PATH    = "/runLambda/"
 	STATUS_PATH = "/status"
 	RID_PATH = "/rid"
+	HIST_PATH = "/history"
 )
 
 // Server is a worker server that listens to run lambda requests and forward
@@ -260,8 +261,16 @@ func Main(config_path string) {
 	http.HandleFunc(STATUS_PATH, server.Status)
 	http.Handle(RID_PATH, new (RidHttpHandler))
 
+	var lhh *LambdaHistoryHandler = new (LambdaHistoryHandler)
+	lhh.Init(4);	// todo: make this configurable
+	http.Handle(HIST_PATH, lhh)
+
 	log.Printf("Execute handler by POSTing to localhost%s%s%s\n", port, RUN_PATH, "<lambda>")
 	log.Printf("Get status by sending request to localhost%s%s\n", port, STATUS_PATH)
+
+	log.Printf("Discover available resources on this machine by sending request to localhost%s%s", port, RID_PATH);
+
+	log.Printf("Find the history of lambda invokations by sending request to localhost%s%s\n", port, HIST_PATH)
 
 	// clean up if signal hits us
 	c := make(chan os.Signal, 1)
