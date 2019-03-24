@@ -4,26 +4,36 @@
 
 package server
 
-import ("fmt"; "net/http")
+import ("fmt"; "math/rand"; "net/http"; "sync"; "time")
 
+// DO NOT MODIFY ANY OF THESE FIELDS DIRECTLY,
+// Instead, go through HandlerAccess only
 type LambdaHistoryHandler struct {
-	logSize uint32	// how many entries to keep 
-	hnames []string	// a list of handler names	
-	present []bool	// does the current handler have a warmed container?
-			// true if yes, false if no
+	logSize uint32		// how many entries to keep 
+	hnames []string		// a list of handler names	
+	present []bool		// does the current handler have a warmed container?
+				// true if yes, false if no
+	writeLock sync.Mutex	// structure write lock
 }
 
 func (hist * LambdaHistoryHandler) PrintCSVToResp(resp *http.ResponseWriter) {
 	var i uint32
+	var p int8
 	for i = 0; i <  hist.logSize; i++ {
 		var s string
 		if hist.hnames[i]  == "" {
-			s = "<cold>"
+			s = "[cold]"
 		} else {
 			s =  hist.hnames[i]
 		}
 
-		fmt.Fprintf(*resp, "%s,\n", s, hist.present[i])
+		if hist.present[i]  {
+			p = 1
+		} else {
+			p = 0
+		}
+
+		fmt.Fprintf(*resp, "%s,%d\n", s, p)
 	}
 }
 
@@ -35,4 +45,31 @@ func (hist * LambdaHistoryHandler) Init(size uint32) {
 	hist.logSize =  size
 	hist.hnames = make([]string, size)
 	hist.present = make([]bool, size)
+}
+
+// The core function responsible for maintaining history details
+// This function is akin a simple lookup on the table
+// Otherwise, it will create a new entry in the table and possibly evict an existing entry (using random)
+// Returns: present or not present bit
+func (hist * LambdaHistoryHandler) HandlerAccess(hname string, code uint8) uint8 {
+	var ind uint32
+
+	// TODO: for better performance, change to hash map string lookup is slow 
+	for ind = 0; ind < hist.logSize; ind++ {
+		if(hist.hnames[ind] == hname) {
+			return 1
+		}
+
+		if(hist.hnames[ind] == "") {
+			hist.hnames[ind] = hname
+			return 0
+		}
+	}
+
+	// If not found and not cold, then go on and evict a random entry
+	rand.Seed(time.Now().UnixNano())
+	ran := rand.Uint32() % hist.logSize
+	hist.hnames[ran] = hname
+	return 0;
+
 }

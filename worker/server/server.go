@@ -24,6 +24,8 @@ const (
 	HIST_PATH = "/history"
 )
 
+var lhh *LambdaHistoryHandler
+
 // Server is a worker server that listens to run lambda requests and forward
 // these requests to its sandboxes.
 type Server struct {
@@ -158,6 +160,9 @@ func (s *Server) RunLambdaErr(w http.ResponseWriter, r *http.Request) *httpErr {
 		}
 	}
 
+	// notify history mechanism
+	lhh.HandlerAccess(urlParts[1], 0)
+
 	// forward to sandbox
 	var handler *handler.Handler
 	if h, err := s.handlers.Get(img); err != nil {
@@ -261,7 +266,7 @@ func Main(config_path string) {
 	http.HandleFunc(STATUS_PATH, server.Status)
 	http.Handle(RID_PATH, new (RidHttpHandler))
 
-	var lhh *LambdaHistoryHandler = new (LambdaHistoryHandler)
+	lhh = new (LambdaHistoryHandler)
 	lhh.Init(4);	// todo: make this configurable
 	http.Handle(HIST_PATH, lhh)
 
