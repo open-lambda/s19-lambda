@@ -160,6 +160,8 @@ func (s *Server) RunLambdaErr(w http.ResponseWriter, r *http.Request) *httpErr {
 		}
 	}
 
+	lhh.HandlerAccess(urlParts[1], CODES.OPEN) // notify history mechanism
+
 	// forward to sandbox
 	var handler *handler.Handler
 	if h, err := s.handlers.Get(img); err != nil {
@@ -181,8 +183,6 @@ func (s *Server) RunLambdaErr(w http.ResponseWriter, r *http.Request) *httpErr {
 			http.StatusInternalServerError)
 	}
 
-	// notify history mechanism
-	lhh.HandlerAccess(urlParts[1], CODES.OPEN)
 
 	return nil
 }
@@ -209,7 +209,7 @@ func (s *Server) RunLambda(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	lhh.HandlerAccess(urlParts[1], CODES.CLOSE)
+	lhh.HandlerAccess(urlParts[1], CODES.CLOSE) // todo evaluate all exit paths of this, make changes accordingly
 }
 
 // Status writes "ready" to the response.
@@ -268,14 +268,12 @@ func Main(config_path string) {
 	http.Handle(RID_PATH, new (RidHttpHandler))
 
 	lhh = new (LambdaHistoryHandler)
-	lhh.Init(16);	// todo: make this configurable
+	lhh.Init(4);	// todo: make this configurable, should be as big as max handler count plus some more
 	http.Handle(HIST_PATH, lhh)
 
 	log.Printf("Execute handler by POSTing to localhost%s%s%s\n", port, RUN_PATH, "<lambda>")
 	log.Printf("Get status by sending request to localhost%s%s\n", port, STATUS_PATH)
-
 	log.Printf("Discover available resources on this machine by sending request to localhost%s%s", port, RID_PATH);
-
 	log.Printf("Find the history of lambda invokations by sending request to localhost%s%s\n", port, HIST_PATH)
 
 	// clean up if signal hits us

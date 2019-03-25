@@ -60,8 +60,8 @@ func (rid * RidHttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Reques
 	sysinf_update()
 
 	if len(param) == 0 {
-		fmt.Fprintf(resp, "openlambda-rid usage\n")
-		fmt.Fprintf(resp, "parameter: query = m | p\n")
+		fmt.Fprintf(resp, FULL_NAME + " usage\n")
+		fmt.Fprintf(resp, "GET parameter: query = m | p | i \n")
 		fmt.Fprintf(resp, "\tm - free memory info (bytes), p - logical processing unit count, i - idle cpu by percentage\n");
 	}
 

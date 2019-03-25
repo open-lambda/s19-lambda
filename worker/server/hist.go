@@ -60,9 +60,12 @@ func (hist * LambdaHistoryHandler) Init(size uint32) {
 // Otherwise, it will create a new entry in the table and possibly evict an existing entry (using random)
 // Returns: present or not present bit
 func (hist * LambdaHistoryHandler) HandlerAccess(hname string, code uint8) uint8 {
+	// TODO: there might be possible race conditions occurring from a PEEK happening at the same time as CLOSE
+	// investigate?
+
 	var ind uint32
 	var found bool
-	// TODO: for better performance, change to hash map string lookup is slow 
+	// TODO: for better performance, change to hash map string, or make into a BST, lookup is slow as of now
 	for ind = 0; ind < hist.logSize; ind++ {
 
 		// found!
@@ -82,7 +85,19 @@ func (hist * LambdaHistoryHandler) HandlerAccess(hname string, code uint8) uint8
 	// If not found and not cold, then go on and evict a random entry
 	if !found {
 		rand.Seed(time.Now().UnixNano())
-		ran := rand.Uint32() % hist.logSize
+		var ran uint32 = rand.Uint32() % hist.logSize
+		var origran uint32 = ran
+
+		// Check if currently selected value is warm, if it is, don't replace that value
+		for ; hist.present[ran]; {
+			ran = ((ran + 1)) % hist.logSize
+
+			if origran == ran {
+				return 0	// if there is simply no space in the history registry, just give up, don't delay further
+				// TODO: make more efficient, linear search is slow
+			}
+		}
+
 		hist.hnames[ran] = hname
 		ind = ran
 	}
