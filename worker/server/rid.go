@@ -5,7 +5,7 @@ package server
 
 import ("fmt"; "net/http"; "os/exec"; "log"; "syscall"; "strconv"; "strings")
 
-const ( FULL_NAME = "openlambda" )
+const ( FULL_NAME = "openlambda-rid" )
 
 var s syscall.Sysinfo_t
 
@@ -25,6 +25,15 @@ func nproc() uint64 {
 	}
 
 	return uint64(ret_a)
+}
+
+func cpufree() string {
+	data, err := exec.Command("statgrab", "-p", "-u", "cpu.idle").Output()
+	if err != nil {
+		log.Fatal(FULL_NAME + ": An error occurred while fetching CPU time stats. Maybe statgrab is not installed?")
+	}
+
+	return string(data)
 }
 
 func sysinf_update() {
@@ -53,7 +62,7 @@ func (rid * RidHttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Reques
 	if len(param) == 0 {
 		fmt.Fprintf(resp, "openlambda-rid usage\n")
 		fmt.Fprintf(resp, "parameter: query = m | p\n")
-		fmt.Fprintf(resp, "\tm - free memory info (bytes), p - logical processing unit count\n");
+		fmt.Fprintf(resp, "\tm - free memory info (bytes), p - logical processing unit count, i - idle cpu by percentage\n");
 	}
 
 	for i := 0; i < len(param); i++ {
@@ -65,5 +74,8 @@ func (rid * RidHttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Reques
 			fmt.Fprintf(resp, "%d\n", nproc())
 		}
 
+		if param[i] == 'i' {
+			fmt.Fprintf(resp, "%s", cpufree()) // statgrab places an implicit newline
+		}
 	}
 }
