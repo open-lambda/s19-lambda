@@ -61,22 +61,51 @@ func (hist * LambdaHistoryHandler) Init(size uint32) {
 // Returns: present or not present bit
 func (hist * LambdaHistoryHandler) HandlerAccess(hname string, code uint8) uint8 {
 	var ind uint32
+	var found bool
 	// TODO: for better performance, change to hash map string lookup is slow 
 	for ind = 0; ind < hist.logSize; ind++ {
+
+		// found!
 		if(hist.hnames[ind] == hname) {
-			return 1
+			found = true
+			break
 		}
 
+		// reached a cold spot!
 		if(hist.hnames[ind] == "") {
 			hist.hnames[ind] = hname
-			return 0
+			found = true
+			break
 		}
 	}
 
 	// If not found and not cold, then go on and evict a random entry
-	rand.Seed(time.Now().UnixNano())
-	ran := rand.Uint32() % hist.logSize
-	hist.hnames[ran] = hname
-	return 0;
+	if !found {
+		rand.Seed(time.Now().UnixNano())
+		ran := rand.Uint32() % hist.logSize
+		hist.hnames[ran] = hname
+		ind = ran
+	}
 
+	var p uint8 = 0
+
+	if code == CODES.OPEN {
+		p = 1
+		hist.present[ind] = true
+	}
+
+	if code == CODES.CLOSE {
+		p = 0
+		hist.present[ind] = false
+	}
+
+	if code == CODES.PEEK {
+		if hist.present[ind] {
+			p = 1
+		} else {
+			p = 0
+		}
+	}
+
+	return p
 }

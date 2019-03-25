@@ -50,6 +50,12 @@ func (rid * RidHttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Reques
 	param := req.Form.Get("query")
 	sysinf_update()
 
+	if len(param) == 0 {
+		fmt.Fprintf(resp, "openlambda-rid usage\n")
+		fmt.Fprintf(resp, "parameter: query = m | p\n")
+		fmt.Fprintf(resp, "\tm - free memory info (bytes), p - logical processing unit count\n");
+	}
+
 	for i := 0; i < len(param); i++ {
 		if param[i] == 'm' {
 			fmt.Fprintf(resp, "%d\n", mem())

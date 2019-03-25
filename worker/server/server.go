@@ -182,7 +182,7 @@ func (s *Server) RunLambdaErr(w http.ResponseWriter, r *http.Request) *httpErr {
 	}
 
 	// notify history mechanism
-	lhh.HandlerAccess(urlParts[1], CODES.PEEK)
+	lhh.HandlerAccess(urlParts[1], CODES.OPEN)
 
 	return nil
 }
@@ -192,7 +192,7 @@ func (s *Server) RunLambdaErr(w http.ResponseWriter, r *http.Request) *httpErr {
 // curl -X POST localhost:8080/runLambda/<lambda-name> -d '{}'
 func (s *Server) RunLambda(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Receive request to %s\n", r.URL.Path)
-
+	urlParts := getUrlComponents(r)
 	// write response headers
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods",
@@ -209,6 +209,7 @@ func (s *Server) RunLambda(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	lhh.HandlerAccess(urlParts[1], CODES.CLOSE)
 }
 
 // Status writes "ready" to the response.
