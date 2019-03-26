@@ -8,9 +8,11 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
+	"encoding/json"
 
 	"github.com/open-lambda/open-lambda/worker/benchmarker"
 	"github.com/open-lambda/open-lambda/worker/config"
@@ -39,6 +41,14 @@ type httpErr struct {
 	code int
 }
 
+// httpResp is a wrapper for http response with server performance data piggy-backed.
+type httpResp struct{
+	totalMem	int
+	freeMem 	int
+	CPUUsage 	float32
+	response 	[]byte
+}
+
 // newHttpErr creates an httpErr.
 func newHttpErr(msg string, code int) *httpErr {
 	return &httpErr{msg: msg, code: code}
@@ -57,6 +67,50 @@ func NewServer(config *config.Config) (*Server, error) {
 	}
 
 	return server, nil
+}
+
+func GetSampleMemStats() (int, int) {
+	contents, err := ioutil.ReadFile("/proc/meminfo")
+	if err != nil {
+		log.Printf("Error reading /proc/meminfo file for memory stats")
+		return -1, -1
+	}
+
+	lines := strings.Split(string(contents), "\n")
+	totalMemLine := lines[0]
+	freeMemLine := lines[1]
+
+	totalMemFields := strings.Fields(totalMemLine)
+	freeMemFields := strings.Fields(freeMemLine)
+	if (totalMemFields[0] != "MemTotal" || freeMemFields[0] != "MemFree") {
+		log.Printf("Error parsing MemTotal and MemFree field of /proc/meminfo")
+		return -1, -1
+	}
+
+	totalMem, err := strconv.Atoi(totalMemFields[1])
+	freeMem, err := strconv.Atoi(freeMemFields[1])
+
+	return totalMem, freeMem
+}
+
+func GetSampleCPUUsage() float32 {
+	// TODO: figure out a clean way to extract cpu usage
+	return 0.0
+}
+
+// Joins return result from computation with server performance data in json format
+func JoinServerPerfData(result []byte) []byte {
+	totalMem, freeMem := GetSampleMemStats()
+	CPUUsage := GetSampleCPUUsage()
+
+	resp := &httpResp{
+		totalMem:	totalMem,
+		freeMem:	freeMem,
+		CPUUsage:	CPUUsage,
+		response:	result}
+	jsonResp, _ := json.Marshal(resp)
+
+	return jsonResp
 }
 
 // ForwardToSandbox forwards a run lambda request to a sandbox.
@@ -127,6 +181,10 @@ func (s *Server) ForwardToSandbox(handler *handler.Handler, r *http.Request, inp
 		if err != nil {
 			return nil, nil, err
 		}
+
+		// Piggy-back server performance metrics in http response
+		wbody = JoinServerPerfData(wbody)
+
 		return wbody, w2, nil
 	}
 }
