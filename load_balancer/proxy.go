@@ -4,11 +4,14 @@ import (
 	"net/http"
 	"net/url"
 	"io/ioutil"
-	"bytes"
-	"io"
+	// "bytes"
 	"strings"
 	"strconv"
 	"math"
+	"encoding/json"
+	"fmt"
+
+	workerServer "github.com/open-lambda/open-lambda/worker/server"
 )
 
 type Proxy struct {
@@ -111,21 +114,34 @@ func (proxy Proxy)ReverseProxy(w http.ResponseWriter, r *http.Request, server Se
 	LogInfo("Recieved response: " + strconv.Itoa(resp.StatusCode))
 
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
+
+	var respStruct workerServer.HttpResp
+	if err := json.Unmarshal(bodyBytes, &respStruct); err != nil {
+		fmt.Print(err)
+		LogErr("json unmarshal failed")
+	}
+	LogInfo("Total Memory: " + strconv.Itoa(respStruct.TotalMem))
+	LogInfo("Free Memory: " + strconv.Itoa(respStruct.FreeMem))
+	LogInfo("CPU Usage: " + fmt.Sprintf("%f", respStruct.CPUUsage))
+
 	if err != nil {
 		LogErr("Proxy: Failed to read response body")
 		http.NotFound(w, r)
 		return 0, err
 	}
 
-	buffer := bytes.NewBuffer(bodyBytes)
-	for k, v := range resp.Header {
+	// buffer := bytes.NewBuffer(bodyBytes)
+	for k, v := range respStruct.ResponseHeader {
 		w.Header().Set(k, strings.Join(v, ";"))
 	}
 
-	w.WriteHeader(resp.StatusCode)
+	w.WriteHeader(respStruct.ResponseCode)
 
-	io.Copy(w, buffer)
-	return resp.StatusCode, nil
+	// io.Copy(w, buffer)
+	// realBody, _ := ioutil.ReadAll(respStruct.ResponseBody)
+	w.Write(respStruct.ResponseBody)
+	fmt.Print(w.Header())
+	return respStruct.ResponseCode, nil
 }
 
 func (proxy Proxy)attemptServers(w http.ResponseWriter, r *http.Request, ignoreList []string) {

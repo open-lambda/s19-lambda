@@ -42,11 +42,13 @@ type httpErr struct {
 }
 
 // httpResp is a wrapper for http response with server performance data piggy-backed.
-type httpResp struct{
-	totalMem	int
-	freeMem 	int
+type HttpResp struct{
+	TotalMem	int
+	FreeMem		int
 	CPUUsage 	float32
-	response 	[]byte
+	ResponseHeader 	map[string][]string
+	ResponseBody 	[]byte
+	ResponseCode	int
 }
 
 // newHttpErr creates an httpErr.
@@ -99,16 +101,28 @@ func GetSampleCPUUsage() float32 {
 }
 
 // Joins return result from computation with server performance data in json format
-func JoinServerPerfData(result []byte) []byte {
+func JoinServerPerfData(result http.Response) []byte {
 	totalMem, freeMem := GetSampleMemStats()
 	CPUUsage := GetSampleCPUUsage()
 
-	resp := &httpResp{
-		totalMem:	totalMem,
-		freeMem:	freeMem,
+	resultHeader := result.Header
+	resultBody, err := ioutil.ReadAll(result.Body)
+	resultCode := result.StatusCode
+
+	resp := &HttpResp{
+		TotalMem:	totalMem,
+		FreeMem:	freeMem,
 		CPUUsage:	CPUUsage,
-		response:	result}
-	jsonResp, _ := json.Marshal(resp)
+		ResponseHeader:	resultHeader,
+		ResponseBody: resultBody,
+		ResponseCode: resultCode}
+
+	log.Print(resp)
+	jsonResp, err := json.Marshal(resp)
+	if err != nil{
+		log.Print(err)
+	}
+	log.Print(string(jsonResp))
 
 	return jsonResp
 }
@@ -176,14 +190,15 @@ func (s *Server) ForwardToSandbox(handler *handler.Handler, r *http.Request, inp
 			}
 		}
 
+
 		defer w2.Body.Close()
-		wbody, err := ioutil.ReadAll(w2.Body)
+		wbody := JoinServerPerfData(*w2)
+		// wbody, err := ioutil.ReadAll(w2.Body)
 		if err != nil {
 			return nil, nil, err
 		}
 
 		// Piggy-back server performance metrics in http response
-		wbody = JoinServerPerfData(wbody)
 
 		return wbody, w2, nil
 	}
@@ -240,7 +255,6 @@ func (s *Server) RunLambdaErr(w http.ResponseWriter, r *http.Request) *httpErr {
 			err.Error(),
 			http.StatusInternalServerError)
 	}
-
 
 	return nil
 }
