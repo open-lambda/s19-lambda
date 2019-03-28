@@ -38,6 +38,12 @@ type HandlerManagerSet struct {
 	hhits      *int64
 	ihits      *int64
 	misses     *int64
+	MemTotal   *int
+	MemFree    *int
+	MemPercent *float64
+	CPUPercent *float64
+	LenQueue   *int64
+	cond       *sync.Cond
 }
 
 type HandlerManager struct {
@@ -105,6 +111,11 @@ func NewHandlerManagerSet(opts *config.Config) (hms *HandlerManagerSet, err erro
 	var hhits int64 = 0
 	var ihits int64 = 0
 	var misses int64 = 0
+	var lenQueue int64 = 0
+	var memPercent float64 = 0.0
+	var cpuPercent float64 = 0.0
+	var memTotal int = 0  
+	var memFree  int = 0
 	hms = &HandlerManagerSet{
 		hmMap:      make(map[string]*HandlerManager),
 		regMgr:     rm,
@@ -117,8 +128,14 @@ func NewHandlerManagerSet(opts *config.Config) (hms *HandlerManagerSet, err erro
 		hhits:      &hhits,
 		ihits:      &ihits,
 		misses:     &misses,
+		MemTotal    &memTotal,
+		MemFree     &memFree,
+		MemPercent: &memPercent,
+		CPUPercent: &cpuPercent,
+		LenQueue:   &lenQueue,
 	}
-
+	m := &sync.Mutex{}
+	hms.cond = sync.NewCond(m)
 	hms.lru = NewHandlerLRU(hms, opts.Handler_cache_size) //kb
 
 	return hms, nil
@@ -152,6 +169,10 @@ func (hms *HandlerManagerSet) Get(name string) (h *Handler, err error) {
 			name:    name,
 			hm:      hm,
 			runners: 1,
+		}
+		if hms.maxRunners == 0 || h.runners < hms.maxRunners {
+			hm.hElements[h] = hm.handlers.PushFront(h)
+			hm.maxHandlers = max(hm.maxHandlers, hm.handlers.Len())
 		}
 	} else {
 		hEle := hm.handlers.Front()
@@ -277,6 +298,13 @@ func (h *Handler) RunStart() (ch *sb.Channel, err error) {
 
 	// create sandbox if needed
 	if h.sandbox == nil {
+		hms.cond.L.Lock()
+		for *hms.LenQueue >= 1 || *hms.MemPercent >= 70{
+			hms.cond.Wait()
+		}
+		*hms.LenQueue += 1
+		hms.cond.L.Unlock()
+
 		hit := false
 
 		// TODO: do this in the background
@@ -322,6 +350,10 @@ func (h *Handler) RunStart() (ch *sb.Channel, err error) {
 			}
 		}
 
+		hms.cond.L.Lock()
+		*hms.LenQueue -= 1
+		hms.cond.L.Unlock()
+		hms.cond.Broadcast()
 		// use StdoutPipe of olcontainer to sync with lambda server
 		ready := make(chan bool, 1)
 		defer close(ready)
@@ -359,13 +391,6 @@ func (h *Handler) RunStart() (ch *sb.Channel, err error) {
 			return nil, fmt.Errorf("handler server failed to initialize after 20s")
 		}
 
-		// we are up so we can add ourselves for reuse
-		if hms.maxRunners == 0 || h.runners < hms.maxRunners {
-			hm.mutex.Lock()
-			hm.hElements[h] = hm.handlers.PushFront(h)
-			hm.maxHandlers = max(hm.maxHandlers, hm.handlers.Len())
-			hm.mutex.Unlock()
-		}
 
 	} else if sbState, _ := h.sandbox.State(); sbState == state.Paused {
 		// unpause if paused
@@ -423,6 +448,7 @@ func (h *Handler) RunFinish() {
 }
 
 func (h *Handler) nuke() {
+	hms := h.hm.hms
 	if err := h.sandbox.Unpause(); err != nil {
 		log.Printf("failed to unpause sandbox :: %v", err.Error())
 	}
@@ -431,6 +457,9 @@ func (h *Handler) nuke() {
 	}
 	if err := h.sandbox.Remove(); err != nil {
 		log.Printf("failed to remove sandbox :: %v", err.Error())
+	}
+	if *hms.MemPercent <= 70{
+		hms.cond.Broadcast()
 	}
 }
 

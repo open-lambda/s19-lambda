@@ -78,6 +78,18 @@ func SetDefaultValues(proxy *Proxy) {
 	if proxy.Servers == nil {
 		proxy.Servers = []Server{}
 	}
+
+	if proxy.LoadHigh == nil{
+		proxy.LoadHigh = 0.4
+	}
+
+	if proxy.LoadLow == nil{
+		proxy.LoadLow = 0.3
+	}
+
+	if proxy.RequestServerMap == nil{
+		proxy.RequestServerMap = make(map[string]*Server)
+	}
 }
 
 func ReadConfig(config_file string) (*Proxy, error) {

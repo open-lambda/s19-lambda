@@ -45,7 +45,7 @@ type httpErr struct {
 type HttpResp struct{
 	TotalMem	int
 	FreeMem		int
-	CPUUsage 	float32
+	CPUUsage 	float64
 	ResponseHeader 	map[string][]string
 	ResponseBody 	[]byte
 	ResponseCode	int
@@ -95,15 +95,19 @@ func GetSampleMemStats() (int, int) {
 	return totalMem, freeMem
 }
 
-func GetSampleCPUUsage() float32 {
+func (s *Server) GetSampleMemPercent() (float64) {
+	return (server.handlers.MemTotal, server.handlers.MemFree)
+}
+
+func (s *Server) GetSampleCPUUsage() float64 {
 	// TODO: figure out a clean way to extract cpu usage
-	return 0.0
+	return server.handlers.CPUPercent
 }
 
 // Joins return result from computation with server performance data in json format
-func JoinServerPerfData(result http.Response) []byte {
-	totalMem, freeMem := GetSampleMemStats()
-	CPUUsage := GetSampleCPUUsage()
+func (s *Server) JoinServerPerfData(result http.Response) []byte {
+	totalMem, freeMem := s.GetSampleMemStats()
+	CPUUsage := s.GetSampleCPUUsage()
 
 	resultHeader := result.Header
 	resultBody, err := ioutil.ReadAll(result.Body)
@@ -192,7 +196,7 @@ func (s *Server) ForwardToSandbox(handler *handler.Handler, r *http.Request, inp
 
 
 		defer w2.Body.Close()
-		wbody := JoinServerPerfData(*w2)
+		wbody := s.JoinServerPerfData(*w2)
 		// wbody, err := ioutil.ReadAll(w2.Body)
 		if err != nil {
 			return nil, nil, err
@@ -329,7 +333,18 @@ func Main(config_path string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	go func() {
+		var cpuPercent = 0.0
+		for true{
+			v, _ := mem.VirtualMemory()
+			server.handlers.MemPercent = &v.UsedPercent
+			server.handlers.CPUPercent = &cpuPercent
+			server.handlers.MemFree = &v.Free
+			server.handlers.MemTotal = &v.Total
+			time.Sleep(1 * time.Second)
+			log.Printf("percent: %f\n", v.UsedPercent)
+		}
+	}()
 	if conf.Benchmark_file != "" {
 		benchmarker.CreateBenchmarkerSingleton(conf.Benchmark_file)
 	}

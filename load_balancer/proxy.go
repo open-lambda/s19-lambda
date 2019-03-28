@@ -8,6 +8,7 @@ import (
 	"strings"
 	"strconv"
 	"math"
+	"sync"
 	"encoding/json"
 	"fmt"
 
@@ -19,6 +20,9 @@ type Proxy struct {
 	Port int
 	Scheme string
 	Servers []Server
+	RequestServerMap map[string]*Server
+	LoadHigh float64
+	LoadLow float64
 }
 
 func (proxy Proxy) origin() string {
@@ -83,7 +87,55 @@ func (proxy Proxy)roundRobinChooseServer(ignoreList []string) *Server {
 	return nil
 }
 
+func (proxy Proxy)lardhooseServer(ignoreList []string, r *http.Request) *Server {
+	var path = r.URL.Path
+	var leastLoadServer = proxy.getLeastLoad(ignoreList, proxy.RequestServerMap)
+	targetServer, ok := RequestServerMap[path]
+	if (ok) {
+		if(targetServer.GetLoad() >= proxy.LoadHigh && leastLoadServer < proxy.LoadLow || targetServer.GetLoad()  >= 2 * proxy.LoadHigh){
+			targetServer = leastLoadServer
+		}
+		shouldIgnore := false
+		for _, ignoreServerName := range ignoreList {
+			if targetServer.Name == ignoreServerName {
+				shouldIgnore = true
+				break
+			}
+		}
+		if shouldIgnore == true {
+			targetServer = nil
+		}
+	}
+	else{
+		targetServer = leastLoadServer
+	}
+	if targetServer != nil {
+		RequestServerMap[path] = targetServer
+	}
+	return targetServer
+}
+
+func (proxy Proxy) getLeastLoad(ignoreList []string, RequestServerMap *map[string]*Server) *Server{
+	var targetServer Server* = nil
+	var minLoad = 1.0
+	LogInfo("-------enter getLeastLoad------")
+	for k, v := range RequestServerMap {
+		var curLoad = v.GetLoad()
+		LogInfo("curLoad: " + fmt.Sprintf("%f", curLoad))
+		if curLoad < minLoad {
+			targetServer = v
+		}
+	}
+	LogInfo("server chosen, load: " + fmt.Sprintf("%f", targetServer.GetLoad()))
+	LogInfo("-------leave getLeastLoad------")
+	return targetServer
+}
+
 func (proxy Proxy)ReverseProxy(w http.ResponseWriter, r *http.Request, server Server) (int, error){
+
+
+
+
 	u, err := url.Parse(server.Url() + r.RequestURI)
 	if err != nil {
 		LogErrAndCrash(err.Error())
@@ -124,6 +176,12 @@ func (proxy Proxy)ReverseProxy(w http.ResponseWriter, r *http.Request, server Se
 	LogInfo("Free Memory: " + strconv.Itoa(respStruct.FreeMem))
 	LogInfo("CPU Usage: " + fmt.Sprintf("%f", respStruct.CPUUsage))
 
+	var path = r.URL.Path
+	targetServer, ok := RequestServerMap[path]
+	targetServer.Cpu = respStruct.CPUUsage
+	targetServer.Cpu = 1.0 * respStruct.FreeMem / respStruct.TotalMem
+	
+
 	if err != nil {
 		LogErr("Proxy: Failed to read response body")
 		http.NotFound(w, r)
@@ -152,7 +210,9 @@ func (proxy Proxy)attemptServers(w http.ResponseWriter, r *http.Request, ignoreL
 	}
 
 	// var server = proxy.chooseServer(ignoreList)
-	var server = proxy.roundRobinChooseServer(ignoreList)
+	// var server = proxy.roundRobinChooseServer(ignoreList)
+	var server = proxy.roundRobinChooseServer(lardhooseServer, r)
+	
 	if server == nil {
 		LogErr("Proxy: Could not find an available server at this time")
 		http.NotFound(w, r)

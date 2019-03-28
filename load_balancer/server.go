@@ -8,6 +8,13 @@ type Server struct {
     Host string
     Port int
     Connections int
+    Cpu float64
+    MemPercent float64
+}
+
+// TODO: design a better formula
+func (server Server) GetLoad() float64 {
+    return server.MemPercent
 }
 
 func (server Server) Url() string {
