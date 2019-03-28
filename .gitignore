@@ -1,3 +1,6 @@
+# Temporory files
+*.tmp
+
 # Object files
 *.o
 *.ko

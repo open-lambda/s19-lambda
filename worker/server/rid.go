@@ -42,7 +42,7 @@ func sysinf_update() {
 	}
 }
 
-func mem() uint64 {
+func freeMem() uint64 {
 	return s.Freeram
 }
 
@@ -67,7 +67,7 @@ func (rid * RidHttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Reques
 
 	for i := 0; i < len(param); i++ {
 		if param[i] == 'm' {
-			fmt.Fprintf(resp, "%d\n", mem())
+			fmt.Fprintf(resp, "%d\n", freeMem())
 		}
 
 		if param[i] == 'p' {
