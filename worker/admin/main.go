@@ -22,7 +22,7 @@ import (
 	"github.com/open-lambda/open-lambda/worker/server"
 	"github.com/urfave/cli"
 
-	"github.com/open-lambda/s19-lambda/load_balancer"
+    "github.com/open-lambda/s19-lambda/load_balancer"
 )
 
 var client *docker.Client
@@ -152,9 +152,9 @@ func newCluster(ctx *cli.Context) error {
 		return err
 	}
 
-	load_balancer := &balancer.Proxy{}
-	balancer.SetDefaultValues(load_balancer)
-	if err := balancer.SaveConfig(load_balancer, configPath(cluster, "load_balancer")); err != nil {
+	balancer := &load_balancer.Proxy{}
+	load_balancer.SetDefaultValues(balancer)
+	if err := load_balancer.SaveConfig(balancer, configPath(cluster, "load_balancer")); err != nil {
 		return err
 	}
 
@@ -178,7 +178,7 @@ func newCluster(ctx *cli.Context) error {
 	dump_sock_image(ctx)
 
 	fmt.Printf("Cluster Directory: %s\n\n", cluster)
-	fmt.Printf("Load Balancer Defaults: \n%s\n\n", balancer.DumpStr(load_balancer))
+	fmt.Printf("Load Balancer Defaults: \n%s\n\n", load_balancer.DumpStr(balancer))
 	fmt.Printf("Worker Defaults: \n%s\n\n", c.DumpStr())
 	fmt.Printf("You may now start a load balancer using the \"load-balancer\" command, and start worker(s) using the \"workers\" command\n")
 	fmt.Printf("Additionally, resource discovery is available through worker context path /rid\n")
@@ -233,12 +233,12 @@ func status(ctx *cli.Context) error {
 		// if strings.HasPrefix(fi.Name(), "load_balancer") && strings.HasSuffix(fi.Name(), ".pid") {
 		if fi.Name() == "load_balancer.pid" {
 			name := fi.Name()[:len(fi.Name())-4]
-			load_balancer, err := balancer.ReadConfig(configPath(cluster, name))
+			balancer, err := load_balancer.ReadConfig(configPath(cluster, name))
 			if err != nil {
 				return err
 			}
 
-			url := fmt.Sprintf("http://localhost:%d/status", load_balancer.Port)
+			url := fmt.Sprintf("http://localhost:%d/status", balancer.Port)
 			response, err := http.Get(url)
 			if err != nil {
 				fmt.Printf("  Could not send GET to %s\n", url)
@@ -491,7 +491,7 @@ func loadBalancerExec(ctx *cli.Context) error {
 		return nil
 	}
 
-	balancer.Run(configFile)
+	load_balancer.Run(configFile)
 	return nil
 }
 
@@ -501,9 +501,9 @@ func loadBalancer(ctx *cli.Context) error {
 	port := ctx.Int("port")
 	configFile := configPath(cluster, "load_balancer")
 	// allow the user to specify the port of the load balancer with the command
-    balancerConfig, err := balancer.ReadConfig(configFile)
+    balancerConfig, err := load_balancer.ReadConfig(configFile)
 	balancerConfig.Port = port
-	balancer.SaveConfig(balancerConfig, configFile)
+	load_balancer.SaveConfig(balancerConfig, configFile)
 	logPath := logPath(cluster, "load_balancer.out")
 	f, err := os.Create(logPath)
 	if err != nil {
