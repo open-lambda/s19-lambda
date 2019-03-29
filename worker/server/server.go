@@ -303,7 +303,6 @@ func Main(config_path string) {
 	}
 	go func() {
 		for true{
-			// kind of inefficient, less spin maybe?
 			total, free := mem_allfree()
 			var percent float64 = float64(free) / float64(total)
 			server.handlers.MemPercent = &percent

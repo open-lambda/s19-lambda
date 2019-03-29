@@ -13,6 +13,10 @@ import (
 	"fmt"
 
 	workerServer "github.com/open-lambda/open-lambda/worker/server"
+	// Should be 'workerServer "github.com/s19-lambda/open-lambda/worker/server"'
+	// As the version of open-lambda being used here does not have the HttpResp type
+	// which was added in to s19-lambda (by this team). possibly use s19-lambda/worker/server
+	// in place of where anytime open-lambda/worker/server is used?
 
 )
 
