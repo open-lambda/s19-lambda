@@ -75,15 +75,19 @@ func SetDefaultValues(proxy *Proxy) {
 		proxy.Scheme = "http"
 	}
 
+	if proxy.Policy == "" {
+		proxy.Policy = "RoundRobin"
+	}
+
 	if proxy.Servers == nil {
 		proxy.Servers = []Server{}
 	}
 
-	if proxy.LoadHigh == nil{
+	if proxy.LoadHigh == 0.0 {
 		proxy.LoadHigh = 0.4
 	}
 
-	if proxy.LoadLow == nil{
+	if proxy.LoadLow == 0.0 {
 		proxy.LoadLow = 0.3
 	}
 

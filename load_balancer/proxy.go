@@ -8,29 +8,31 @@ import (
 	"strings"
 	"strconv"
 	"math"
-	"sync"
 	"encoding/json"
 	"fmt"
+	"sync"
 
-	workerServer "github.com/open-lambda/open-lambda/worker/server"
+	workerServer "github.com/open-lambda/s19-lambda/worker/server"
 )
 
 type Proxy struct {
 	Host string
 	Port int
 	Scheme string
+	Policy string
 	Servers []Server
 	RequestServerMap map[string]*Server
+	MapLock sync.RWMutex
 	LoadHigh float64
 	LoadLow float64
 }
 
-func (proxy Proxy) origin() string {
+func (proxy *Proxy) origin() string {
 	return (proxy.Scheme + "://" + proxy.Host + ":" + strconv.Itoa(proxy.Port));
 }
 
 // TODO: This crashes if we define no servers in our config
-func (proxy Proxy)chooseServer(ignoreList []string) *Server {
+func (proxy *Proxy)chooseServer(ignoreList []string) *Server {
 	var min = -1
 	var minIndex = 0
 	for index,server := range proxy.Servers {
@@ -61,7 +63,7 @@ func (proxy Proxy)chooseServer(ignoreList []string) *Server {
 
 var RRServerIdx int = 0
 
-func (proxy Proxy)roundRobinChooseServer(ignoreList []string) *Server {
+func (proxy *Proxy)roundRobinChooseServer(ignoreList []string) *Server {
 	if len(proxy.Servers) == 0 {
 		return nil
 	}
@@ -82,17 +84,20 @@ func (proxy Proxy)roundRobinChooseServer(ignoreList []string) *Server {
 			continue
 		}
 		RRServerIdx = nextServerIndex
+		server.Connections += 1
 		return &server
 	}
 	return nil
 }
 
-func (proxy Proxy)lardhooseServer(ignoreList []string, r *http.Request) *Server {
+func (proxy *Proxy)lardChooseServer(ignoreList []string, r *http.Request) *Server {
 	var path = r.URL.Path
-	var leastLoadServer = proxy.getLeastLoad(ignoreList, proxy.RequestServerMap)
-	targetServer, ok := RequestServerMap[path]
+	var leastLoadServer = proxy.getLeastLoad(ignoreList)
+	proxy.MapLock.RLock()
+	targetServer, ok := proxy.RequestServerMap[path]
+	proxy.MapLock.RUnlock()
 	if (ok) {
-		if(targetServer.GetLoad() >= proxy.LoadHigh && leastLoadServer < proxy.LoadLow || targetServer.GetLoad()  >= 2 * proxy.LoadHigh){
+		if(targetServer.GetLoad() >= proxy.LoadHigh && leastLoadServer.GetLoad() < proxy.LoadLow || targetServer.GetLoad()  >= 2 * proxy.LoadHigh){
 			targetServer = leastLoadServer
 		}
 		shouldIgnore := false
@@ -105,36 +110,33 @@ func (proxy Proxy)lardhooseServer(ignoreList []string, r *http.Request) *Server 
 		if shouldIgnore == true {
 			targetServer = nil
 		}
-	}
-	else{
+	} else {
 		targetServer = leastLoadServer
 	}
 	if targetServer != nil {
-		RequestServerMap[path] = targetServer
+		targetServer.Connections += 1
+		proxy.MapLock.Lock()
+		proxy.RequestServerMap[path] = targetServer
+		proxy.MapLock.Unlock()
 	}
 	return targetServer
 }
 
-func (proxy Proxy) getLeastLoad(ignoreList []string, RequestServerMap *map[string]*Server) *Server{
-	var targetServer Server* = nil
+func (proxy *Proxy) getLeastLoad(ignoreList []string) *Server{
+	var targetServer *Server = nil
 	var minLoad = 1.0
-	LogInfo("-------enter getLeastLoad------")
-	for k, v := range RequestServerMap {
-		var curLoad = v.GetLoad()
-		LogInfo("curLoad: " + fmt.Sprintf("%f", curLoad))
+	for i:=0; i < len(proxy.Servers); i++{
+		server := &proxy.Servers[i]
+		var curLoad = server.GetLoad()
 		if curLoad < minLoad {
-			targetServer = v
+			minLoad = curLoad
+			targetServer = server
 		}
 	}
-	LogInfo("server chosen, load: " + fmt.Sprintf("%f", targetServer.GetLoad()))
-	LogInfo("-------leave getLeastLoad------")
 	return targetServer
 }
 
-func (proxy Proxy)ReverseProxy(w http.ResponseWriter, r *http.Request, server Server) (int, error){
-
-
-
+func (proxy *Proxy)ReverseProxy(w http.ResponseWriter, r *http.Request, server *Server) (int, error){
 
 	u, err := url.Parse(server.Url() + r.RequestURI)
 	if err != nil {
@@ -172,15 +174,25 @@ func (proxy Proxy)ReverseProxy(w http.ResponseWriter, r *http.Request, server Se
 		fmt.Print(err)
 		LogErr("json unmarshal failed")
 	}
-	LogInfo("Total Memory: " + strconv.Itoa(respStruct.TotalMem))
-	LogInfo("Free Memory: " + strconv.Itoa(respStruct.FreeMem))
-	LogInfo("CPU Usage: " + fmt.Sprintf("%f", respStruct.CPUUsage))
 
-	var path = r.URL.Path
-	targetServer, ok := RequestServerMap[path]
-	targetServer.Cpu = respStruct.CPUUsage
-	targetServer.Cpu = 1.0 * respStruct.FreeMem / respStruct.TotalMem
-	
+
+	if proxy.Policy == "LARD" {
+		var path = r.URL.Path
+		proxy.MapLock.RLock()
+		targetServer, _ := proxy.RequestServerMap[path]
+		proxy.MapLock.RUnlock()
+		targetServer.Cpu = respStruct.CPUUsage
+		targetServer.MemPercent = 1.0 - float64(respStruct.FreeMem) / float64(respStruct.TotalMem)
+	}
+
+	LogInfo("Server load condition:")
+	for _, server := range proxy.Servers {
+		// LogInfo("Piggybacked Info: ")
+		LogInfo(server.Name)
+		LogInfo(fmt.Sprintf("	Memory Usage: %f%%", server.MemPercent*100))
+		LogInfo(fmt.Sprintf("	CPU Usage: %f%%", server.Cpu))
+		LogInfo(fmt.Sprintf("	Current Serving Requests: %d", server.Connections))
+	}
 
 	if err != nil {
 		LogErr("Proxy: Failed to read response body")
@@ -198,20 +210,23 @@ func (proxy Proxy)ReverseProxy(w http.ResponseWriter, r *http.Request, server Se
 	// io.Copy(w, buffer)
 	// realBody, _ := ioutil.ReadAll(respStruct.ResponseBody)
 	w.Write(respStruct.ResponseBody)
-	fmt.Print(w.Header())
 	return respStruct.ResponseCode, nil
 }
 
-func (proxy Proxy)attemptServers(w http.ResponseWriter, r *http.Request, ignoreList []string) {
+func (proxy *Proxy)attemptServers(w http.ResponseWriter, r *http.Request, ignoreList []string) {
 	if float64(len(ignoreList)) >= math.Min(float64(3), float64(len(proxy.Servers))) {
 		LogErr("Failed to find server for request")
 		http.NotFound(w, r)
 		return
 	}
 
-	// var server = proxy.chooseServer(ignoreList)
-	// var server = proxy.roundRobinChooseServer(ignoreList)
-	var server = proxy.roundRobinChooseServer(lardhooseServer, r)
+	var server *Server = nil
+	switch proxy.Policy {
+		case "RoundRobin":
+			server = proxy.roundRobinChooseServer(ignoreList)
+		case "LARD":
+			server = proxy.lardChooseServer(ignoreList, r)
+	}
 	
 	if server == nil {
 		LogErr("Proxy: Could not find an available server at this time")
@@ -222,8 +237,7 @@ func (proxy Proxy)attemptServers(w http.ResponseWriter, r *http.Request, ignoreL
 	LogInfo("Got request: " + r.RequestURI)
 	LogInfo("Sending to server: " + server.Name)
 
-	server.Connections += 1
-	_, err := proxy.ReverseProxy(w, r, *server)
+	_, err := proxy.ReverseProxy(w, r, server)
 	server.Connections -= 1
 
 	if err != nil && strings.Contains(err.Error(), "connection refused") {
@@ -235,11 +249,11 @@ func (proxy Proxy)attemptServers(w http.ResponseWriter, r *http.Request, ignoreL
 	LogInfo("Responded to request successfuly")
 }
 
-func (proxy Proxy)handler(w http.ResponseWriter, r *http.Request) {
+func (proxy *Proxy)handler(w http.ResponseWriter, r *http.Request) {
 	proxy.attemptServers(w, r, []string{})
 }
 
-func (proxy Proxy)statusHandler(w http.ResponseWriter, r *http.Request) {
+func (proxy *Proxy)statusHandler(w http.ResponseWriter, r *http.Request) {
 	LogInfo("Receive request to " + r.URL.Path)
 
 	wbody := []byte("ready\n")
