@@ -85,8 +85,8 @@ func GetSampleCPUUsage() float64 {
 
 // Joins return result from computation with server performance data in json format
 func (s *Server) JoinServerPerfData(result http.Response) []byte {
-	totalMem, freeMem := s.GetSampleMemStats()
-	CPUUsage := s.GetSampleCPUUsage()
+	totalMem, freeMem := GetSampleMemStats()
+	CPUUsage := GetSampleCPUUsage()
 
 	resultHeader := result.Header
 	resultBody, err := ioutil.ReadAll(result.Body)
@@ -315,13 +315,14 @@ func Main(config_path string) {
 	go func() {
 		for true{
 			total, free := GetSampleMemStats()
-			var percent float64 = 1.0 * total / free
+			var percent float64 = float64(total) / float64(free)
 			server.handlers.MemPercent = &percent
-			server.handlers.CPUPercent = &GetSampleCPUUsage()
+			CPUUsage := GetSampleCPUUsage()
+			server.handlers.CPUPercent = &CPUUsage
 			server.handlers.MemFree = &free
 			server.handlers.MemTotal = &total
 			time.Sleep(1 * time.Second)
-			log.Printf("percent: %f\n", v.UsedPercent)
+			log.Printf("percent: %f\n", percent)
 		}
 	}()
 	if conf.Benchmark_file != "" {

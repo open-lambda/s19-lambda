@@ -1,16 +1,12 @@
-module github.com/open-lambda/open-lambda/worker
+module github.com/open-lambda/s19-lambda/worker
 
 require (
 	github.com/StackExchange/wmi v0.0.0-20181212234831-e0a55b97c705 // indirect
 	github.com/fsouza/go-dockerclient v1.3.6
-	github.com/go-ini/ini v1.42.0 // indirect
 	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/minio/minio-go v6.0.14+incompatible
-	github.com/mitchellh/go-homedir v1.1.0 // indirect
-	github.com/open-lambda/s19-lambda/load_balancer v0.0.0-20190328065606-30ebc5b4e992
+	github.com/open-lambda/open-lambda/worker v0.0.0-20190114203241-6df65ce3e967
+	github.com/open-lambda/s19-lambda/load_balancer v0.0.0-20190329013742-6ba763cdea66
 	github.com/shirou/gopsutil v2.18.12+incompatible
-	github.com/smartystreets/goconvey v0.0.0-20190306220146-200a235640ff // indirect
 	github.com/urfave/cli v1.20.0
-	golang.org/x/net v0.0.0-20190327214358-63eda1eb0650 // indirect
-	gopkg.in/ini.v1 v1.42.0 // indirect
 )
