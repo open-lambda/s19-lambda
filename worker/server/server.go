@@ -17,8 +17,6 @@ import (
 	"github.com/open-lambda/open-lambda/worker/config"
 	"github.com/open-lambda/open-lambda/worker/handler"
 
-	"github.com/shirou/gopsutil/mem"
-	"github.com/shirou/gopsutil/cpu"
 )
 
 const (
@@ -47,9 +45,9 @@ type httpErr struct {
 type HttpResp struct{
 	TotalMem	int
 	FreeMem		int
-	CPUUsage 	float64
-	ResponseHeader 	map[string][]string
-	ResponseBody 	[]byte
+	CPUUsage	float64
+	ResponseHeader	map[string][]string
+	ResponseBody	[]byte
 	ResponseCode	int
 }
 
@@ -73,20 +71,11 @@ func NewServer(config *config.Config) (*Server, error) {
 	return server, nil
 }
 
-func GetSampleMemStats() (int, int) {
-	v, _ := mem.VirtualMemory()
-	return int(v.Total), int(v.Free)
-}
-
-func GetSampleCPUUsage() float64 {
-	v, _ := cpu.Percent(0, false)
-	return v[0]
-}
 
 // Joins return result from computation with server performance data in json format
 func (s *Server) JoinServerPerfData(result http.Response) []byte {
-	totalMem, freeMem := GetSampleMemStats()
-	CPUUsage := GetSampleCPUUsage()
+	totalMem, freeMem := mem_allfree()
+	CPUUsage := cpuusage()
 
 	resultHeader := result.Header
 	resultBody, err := ioutil.ReadAll(result.Body)
@@ -314,10 +303,10 @@ func Main(config_path string) {
 	}
 	go func() {
 		for true{
-			total, free := GetSampleMemStats()
-			var percent float64 = float64(total) / float64(free)
+			total, free := mem_allfree()
+			var percent float64 = float64(free) / float64(total)
 			server.handlers.MemPercent = &percent
-			CPUUsage := GetSampleCPUUsage()
+			CPUUsage := cpuusage()
 			server.handlers.CPUPercent = &CPUUsage
 			server.handlers.MemFree = &free
 			server.handlers.MemTotal = &total
