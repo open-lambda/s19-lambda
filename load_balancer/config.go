@@ -79,11 +79,11 @@ func SetDefaultValues(proxy *Proxy) {
 		proxy.Servers = []Server{}
 	}
 
-	if proxy.LoadHigh == nil{
+	if proxy.LoadHigh == 0 {
 		proxy.LoadHigh = 0.4
 	}
 
-	if proxy.LoadLow == nil{
+	if proxy.LoadLow == 0 {
 		proxy.LoadLow = 0.3
 	}
 

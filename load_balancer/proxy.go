@@ -7,12 +7,13 @@ import (
 	// "bytes"
 	"strings"
 	"strconv"
+	// "sync"
 	"math"
-	"sync"
 	"encoding/json"
 	"fmt"
 
 	workerServer "github.com/open-lambda/open-lambda/worker/server"
+
 )
 
 type Proxy struct {
@@ -89,10 +90,10 @@ func (proxy Proxy)roundRobinChooseServer(ignoreList []string) *Server {
 
 func (proxy Proxy)lardhooseServer(ignoreList []string, r *http.Request) *Server {
 	var path = r.URL.Path
-	var leastLoadServer = proxy.getLeastLoad(ignoreList, proxy.RequestServerMap)
-	targetServer, ok := RequestServerMap[path]
+	var leastLoadServer = proxy.getLeastLoad(ignoreList, &proxy.RequestServerMap)
+	targetServer, ok := proxy.RequestServerMap[path]
 	if (ok) {
-		if(targetServer.GetLoad() >= proxy.LoadHigh && leastLoadServer < proxy.LoadLow || targetServer.GetLoad()  >= 2 * proxy.LoadHigh){
+		if(targetServer.GetLoad() >= proxy.LoadHigh && targetServer.GetLoad() < proxy.LoadLow || targetServer.GetLoad()  >= 2 * proxy.LoadHigh){
 			targetServer = leastLoadServer
 		}
 		shouldIgnore := false
@@ -105,21 +106,20 @@ func (proxy Proxy)lardhooseServer(ignoreList []string, r *http.Request) *Server 
 		if shouldIgnore == true {
 			targetServer = nil
 		}
-	}
-	else{
+	} else{
 		targetServer = leastLoadServer
 	}
 	if targetServer != nil {
-		RequestServerMap[path] = targetServer
+		proxy.RequestServerMap[path] = targetServer
 	}
 	return targetServer
 }
 
 func (proxy Proxy) getLeastLoad(ignoreList []string, RequestServerMap *map[string]*Server) *Server{
-	var targetServer Server* = nil
+	var targetServer *Server = nil
 	var minLoad = 1.0
 	LogInfo("-------enter getLeastLoad------")
-	for k, v := range RequestServerMap {
+	for k, v := range *RequestServerMap {
 		var curLoad = v.GetLoad()
 		LogInfo("curLoad: " + fmt.Sprintf("%f", curLoad))
 		if curLoad < minLoad {
@@ -177,10 +177,9 @@ func (proxy Proxy)ReverseProxy(w http.ResponseWriter, r *http.Request, server Se
 	LogInfo("CPU Usage: " + fmt.Sprintf("%f", respStruct.CPUUsage))
 
 	var path = r.URL.Path
-	targetServer, ok := RequestServerMap[path]
+	targetServer, ok := proxy.RequestServerMap[path]
 	targetServer.Cpu = respStruct.CPUUsage
 	targetServer.Cpu = 1.0 * respStruct.FreeMem / respStruct.TotalMem
-	
 
 	if err != nil {
 		LogErr("Proxy: Failed to read response body")
@@ -211,8 +210,8 @@ func (proxy Proxy)attemptServers(w http.ResponseWriter, r *http.Request, ignoreL
 
 	// var server = proxy.chooseServer(ignoreList)
 	// var server = proxy.roundRobinChooseServer(ignoreList)
-	var server = proxy.roundRobinChooseServer(lardhooseServer, r)
-	
+	var server = proxy.lardhooseServer(ignoreList, r)
+
 	if server == nil {
 		LogErr("Proxy: Could not find an available server at this time")
 		http.NotFound(w, r)

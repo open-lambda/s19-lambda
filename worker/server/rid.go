@@ -3,7 +3,18 @@
 // to get some basic system information or send it over http
 package server
 
-import ("fmt"; "net/http"; "os/exec"; "log"; "syscall"; "strconv"; "strings")
+import (
+	"fmt"
+	"net/http"
+	"os/exec"
+	"log"
+	"syscall"
+	"strconv"
+	"strings"
+
+	"github.com/shirou/gopsutil/mem"
+	"github.com/shirou/gopsutil/cpu"
+)
 
 const ( FULL_NAME = "openlambda-rid" )
 
@@ -27,14 +38,30 @@ func nproc() uint64 {
 	return uint64(ret_a)
 }
 
-func cpufree() string {
-	data, err := exec.Command("statgrab", "-p", "-u", "cpu.idle").Output()
-	if err != nil {
-		log.Fatal(FULL_NAME + ": An error occurred while fetching CPU time stats. Maybe statgrab is not installed?")
-	}
-
-	return string(data)
+/* cpuusage
+ * Returns one value
+ * return value: percentage of CPU usage
+ */
+func cpuusage() float64 {
+	v, _ := cpu.Percent(0, false)
+	return v[0]
 }
+
+/* cpufree
+ * Returns one value
+ * return value: percentage of idle CPU
+ */
+func cpufree() float64 {
+//	data, err := exec.Command("statgrab", "-p", "-u", "cpu.idle").Output()
+//	if err != nil {
+//		log.Fatal(FULL_NAME + ": An error occurred while fetching CPU time stats. Maybe statgrab is not installed?")
+//	}
+	// TODO remove after testing
+//	return string(data)
+
+	return  100 - cpuusage()
+}
+
 
 func sysinf_update() {
 	if syscall.Sysinfo(&s) != nil {
@@ -42,8 +69,14 @@ func sysinf_update() {
 	}
 }
 
-func freeMem() uint64 {
-	return s.Freeram
+/* memusefree
+ * Returns two values
+ * First return value: total memory available 
+ * Second return value : free memory available
+ */
+func mem_allfree() (int, int) {
+	v, _ := mem.VirtualMemory()
+	return int(v.Total), int(v.Free)
 }
 
 /* RID Http Handler
@@ -53,6 +86,8 @@ func freeMem() uint64 {
  */
 type RidHttpHandler struct {
 }
+
+var hack int 
 
 func (rid * RidHttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	req.ParseForm()
@@ -67,7 +102,9 @@ func (rid * RidHttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Reques
 
 	for i := 0; i < len(param); i++ {
 		if param[i] == 'm' {
-			fmt.Fprintf(resp, "%d\n", freeMem())
+			t1, t2 := mem_allfree()
+			fmt.Fprintf(resp, "%d\n", t2)
+			hack = t1
 		}
 
 		if param[i] == 'p' {
@@ -75,7 +112,7 @@ func (rid * RidHttpHandler) ServeHTTP(resp http.ResponseWriter, req *http.Reques
 		}
 
 		if param[i] == 'i' {
-			fmt.Fprintf(resp, "%s", cpufree()) // statgrab places an implicit newline
+			fmt.Fprintf(resp, "%d\n", cpufree())
 		}
 	}
 }
