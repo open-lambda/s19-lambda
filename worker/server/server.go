@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -17,6 +16,9 @@ import (
 	"github.com/open-lambda/open-lambda/worker/benchmarker"
 	"github.com/open-lambda/open-lambda/worker/config"
 	"github.com/open-lambda/open-lambda/worker/handler"
+
+	"github.com/shirou/gopsutil/mem"
+	"github.com/shirou/gopsutil/cpu"
 )
 
 const (
@@ -72,36 +74,13 @@ func NewServer(config *config.Config) (*Server, error) {
 }
 
 func GetSampleMemStats() (int, int) {
-	contents, err := ioutil.ReadFile("/proc/meminfo")
-	if err != nil {
-		log.Printf("Error reading /proc/meminfo file for memory stats")
-		return -1, -1
-	}
-
-	lines := strings.Split(string(contents), "\n")
-	totalMemLine := lines[0]
-	freeMemLine := lines[1]
-
-	totalMemFields := strings.Fields(totalMemLine)
-	freeMemFields := strings.Fields(freeMemLine)
-	if (totalMemFields[0] != "MemTotal" || freeMemFields[0] != "MemFree") {
-		log.Printf("Error parsing MemTotal and MemFree field of /proc/meminfo")
-		return -1, -1
-	}
-
-	totalMem, err := strconv.Atoi(totalMemFields[1])
-	freeMem, err := strconv.Atoi(freeMemFields[1])
-
-	return totalMem, freeMem
+	v, _ := mem.VirtualMemory()
+	return int(v.Total), int(v.Free)
 }
 
-func (s *Server) GetSampleMemPercent() (float64) {
-	return (server.handlers.MemTotal, server.handlers.MemFree)
-}
-
-func (s *Server) GetSampleCPUUsage() float64 {
-	// TODO: figure out a clean way to extract cpu usage
-	return server.handlers.CPUPercent
+func GetSampleCPUUsage() float64 {
+	v, _ := cpu.Percent(0, false)
+	return v[0]
 }
 
 // Joins return result from computation with server performance data in json format
@@ -334,13 +313,13 @@ func Main(config_path string) {
 		log.Fatal(err)
 	}
 	go func() {
-		var cpuPercent = 0.0
 		for true{
-			v, _ := mem.VirtualMemory()
-			server.handlers.MemPercent = &v.UsedPercent
-			server.handlers.CPUPercent = &cpuPercent
-			server.handlers.MemFree = &v.Free
-			server.handlers.MemTotal = &v.Total
+			total, free := GetSampleMemStats()
+			var percent float64 = 1.0 * total / free
+			server.handlers.MemPercent = &percent
+			server.handlers.CPUPercent = &GetSampleCPUUsage()
+			server.handlers.MemFree = &free
+			server.handlers.MemTotal = &total
 			time.Sleep(1 * time.Second)
 			log.Printf("percent: %f\n", v.UsedPercent)
 		}

@@ -65,6 +65,7 @@ github.com/opencontainers/image-spec/specs-go
 github.com/opencontainers/runc/libcontainer/user
 # github.com/pkg/errors v0.8.1
 github.com/pkg/errors
+github.com/shirou/gopsutil/mem
 # github.com/sirupsen/logrus v1.3.0
 github.com/sirupsen/logrus
 # github.com/urfave/cli v1.20.0
