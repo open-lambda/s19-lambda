@@ -1,0 +1,26 @@
+{
+	"registry": "local",
+	"sandbox": "sock",
+	"registry_dir": "/mnt/lambda_scheduler/s19-lambda/my-cluster/registry",
+	"registry_server": "",
+	"registry_access_key": "",
+	"registry_secret_key": "",
+	"cluster_name": "/mnt/lambda_scheduler/s19-lambda/my-cluster",
+	"pip_mirror": "",
+	"Pkgs_dir": "/mnt/lambda_scheduler/s19-lambda/my-cluster/packages",
+	"max_runners": 0,
+	"handler_cache_size": 0,
+	"import_cache_size": 0,
+	"worker_dir": "/mnt/lambda_scheduler/s19-lambda/my-cluster/workers/default",
+	"SOCK_base_path": "/mnt/lambda_scheduler/s19-lambda/my-cluster/base",
+	"worker_port": "?",
+	"cg_pool_size": 0,
+	"Skip_pull_existing": false,
+	"sandbox_config": {
+		"processes": 10
+	},
+	"benchmark_log": "",
+	"timing": false,
+	"startup_pkgs": null,
+	"docker_runtime": ""
+}
