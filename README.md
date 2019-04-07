@@ -6,6 +6,16 @@ is to enable exploration of new approaches to serverless computing.  Our
 research agenda is described in more detail in a [HotCloud '16
 paper](https://www.usenix.org/system/files/conference/hotcloud16/hotcloud16_hendrickson.pdf).
 
+## Feature Roadmap
+
+- [x] Load balancer to support distributed OpenLambda
+- [x] `admin` commands for ease administrating load balancer
+- [x] Piggyback resource/load info in worker's reply and LARD scheduling strategy
+- [ ] Extending current `admin new` command for ease of creating worker clusters
+- [ ] Extending current `admin upload` command for uploading new handlers to worker clusters
+- [ ] Queuing mechanism on worker for more efficient scheduling
+- [ ] Queuing mechanism on server to avoid system-wide overload
+
 ## Getting Started
 
 OpenLambda relies heavily on operations that require root privilege. To
