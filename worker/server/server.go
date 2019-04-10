@@ -41,14 +41,14 @@ type httpErr struct {
 	code int
 }
 
-// httpResp is a wrapper for http response with server performance data piggy-backed.
+// httpResp is a wrapper for http response with server resource data piggy-backed.
 type HttpResp struct{
 	TotalMem	int
 	FreeMem		int
 	CPUUsage	float64
+	ResponseCode	int
 	ResponseHeader	map[string][]string
 	ResponseBody	[]byte
-	ResponseCode	int
 }
 
 // newHttpErr creates an httpErr.
@@ -73,7 +73,7 @@ func NewServer(config *config.Config) (*Server, error) {
 
 
 // Joins return result from computation with server performance data in json format
-func (s *Server) JoinServerPerfData(result http.Response) []byte {
+func (s *Server) JoinServerPerfData(result *http.Response) []byte {
 	totalMem, freeMem := mem_allfree()
 	CPUUsage := cpuusage()
 
@@ -85,9 +85,9 @@ func (s *Server) JoinServerPerfData(result http.Response) []byte {
 		TotalMem:	totalMem,
 		FreeMem:	freeMem,
 		CPUUsage:	CPUUsage,
+		ResponseCode: resultCode,
 		ResponseHeader:	resultHeader,
-		ResponseBody: resultBody,
-		ResponseCode: resultCode}
+		ResponseBody: resultBody}
 
 	log.Print(resp)
 	jsonResp, err := json.Marshal(resp)
@@ -162,15 +162,23 @@ func (s *Server) ForwardToSandbox(handler *handler.Handler, r *http.Request, inp
 			}
 		}
 
-
 		defer w2.Body.Close()
-		wbody := s.JoinServerPerfData(*w2)
+
+		// write response headers
+		w2.Header.Set("Access-Control-Allow-Origin", "*")
+		w2.Header.Set("Access-Control-Allow-Methods",
+			"GET, PUT, POST, DELETE, OPTIONS")
+		w2.Header.Set("Access-Control-Allow-Headers",
+			"Content-Type, Content-Range, Content-Disposition, Content-Description, X-Requested-With")
+
+		// Piggy-back server performance metrics in http response
+		wbody := s.JoinServerPerfData(w2)
 		// wbody, err := ioutil.ReadAll(w2.Body)
+
 		if err != nil {
 			return nil, nil, err
 		}
 
-		// Piggy-back server performance metrics in http response
 
 		return wbody, w2, nil
 	}
@@ -237,12 +245,13 @@ func (s *Server) RunLambdaErr(w http.ResponseWriter, r *http.Request) *httpErr {
 func (s *Server) RunLambda(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Receive request to %s\n", r.URL.Path)
 	urlParts := getUrlComponents(r)
+
 	// write response headers
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods",
-		"GET, PUT, POST, DELETE, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers",
-		"Content-Type, Content-Range, Content-Disposition, Content-Description, X-Requested-With")
+	// w.Header().Set("Access-Control-Allow-Origin", "*")
+	// w.Header().Set("Access-Control-Allow-Methods",
+	//	"GET, PUT, POST, DELETE, OPTIONS")
+	// w.Header().Set("Access-Control-Allow-Headers",
+	//	"Content-Type, Content-Range, Content-Disposition, Content-Description, X-Requested-With")
 
 	if r.Method == "OPTIONS" {
 		w.WriteHeader(http.StatusOK)
