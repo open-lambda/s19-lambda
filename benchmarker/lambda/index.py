@@ -5,21 +5,16 @@ import json
 import time
 import os
 
-from stats import *
 from tests import *
-
+from django_test import django_test
 
 def run_cmd(cmd):
     return os.popen(cmd).read().strip("\n")
 
 
-def handler(event, context):
+def handler(event):
     # start timer
     tm_st = time.time() * 1000
-
-    # add the path for the external code
-    os.environ['PATH'] = os.environ['PATH'] + \
-        ':' + os.environ['LAMBDA_TASK_ROOT']
 
     # the map for converting parameters to tests
     CMD_2_FUNC = {
@@ -30,31 +25,29 @@ def handler(event, context):
         "cpu": cpu_test,
         "mem": mem_test,
         "django": django_test,
-        "matplotlib_numpy": matplotlib_numpy_test,
-        "pandas_numpy": pandas_numpy_test,
-        "pip_numpy": pip_numpy_test,
-        "setuptools": setuptools_test,
+#        "matplotlib_numpy": matplotlib_numpy_test,
+#        "pandas_numpy": pandas_numpy_test,
+#        "pip_numpy": pip_numpy_test,
+#        "setuptools": setuptools_test,
     }
 
     cmds = event["cmds"]
 
-    # sleep until specified time
-    wait_util = int(cmds["sleep"])
-    cmds.pop("sleep", None)
+    # # sleep until specified time
+    # wait_util = int(cmds["sleep"])
+    # cmds.pop("sleep", None)
 
-    while time.time() * 1000 < wait_util:
-        continue
+    # while time.time() * 1000 < wait_util:
+    #     continue
 
     basic_info = []
-    for k in cmds:
-        # if false, skip the test
-        if not cmds[k]:
-            continue
+    for cmd in cmds:
         # find the tests to run based on the parameter
-        func = CMD_2_FUNC[k]
-        para = cmds[k]
+        func = CMD_2_FUNC[cmd[0]]
+        para = cmd[1:]
+        print(func, para)
         try:
-            res = func(**para)
+            res = func(*para)
         except BaseException:
             res = None
         # collect all results
@@ -62,7 +55,7 @@ def handler(event, context):
 
     tm_ed = time.time() * 1000
 
-    # record coldstart time
+    # record coldstart time, ?????????????????????????????????????????????????? Why cold start?
     timing_info = [fstr(tm_st), fstr(tm_ed), fstr(tm_ed - tm_st)]
 
     res = '#'.join(basic_info + timing_info)
@@ -71,3 +64,4 @@ def handler(event, context):
 
 
 #########################
+
