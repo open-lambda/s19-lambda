@@ -1,0 +1,18 @@
+{
+   "host": "localhost",
+   "port": 8079,
+   "olPath": "/mnt/lambda_scheduler/s19-lambda",
+   "registryMachines": [
+         "c220g2-011027.wisc.cloudlab.us",
+         "c220g2-011025.wisc.cloudlab.us",
+         "c220g2-011026.wisc.cloudlab.us"
+
+   ],
+   "cmds": [
+      {
+         "cmd": "{'cmds':[['cpu', 10000], ['mem', 10000000, 0.5]]}",
+         "numThreads": 20,
+         "totalCmds": 400
+      }
+   ]
+}

@@ -3,7 +3,7 @@
 # $2 OpenLambda path
 # $3 machines list
 
-ARR=( "$@" )
+ARR=("$@")
 
 num_dumps=${ARR[0]}
 echo "number of lambda dumps: $num_dumps"

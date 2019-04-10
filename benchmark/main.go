@@ -52,7 +52,7 @@ type PerfMetrics struct{
 
 
 var LAMBDA_BASE = "lambda-"
-var BENCHMARK_PREPARE_SCRIPT = "benchmark_prepare.sh"
+var BENCHMARK_PREPARE_SCRIPT = "/mnt/lambda_scheduler/s19-lambda/benchmark/benchmark_prepare.sh"
 
 // WorkerPools consists a list of WorkerPool, one WorkerPool for each
 // Command in the corresponding config file.
@@ -72,12 +72,12 @@ func startBenchmark(ctx *cli.Context) error {
 	}
 
 	cmdLineOut, err := prepBenchmark(*benchmarkConfig)
+	fmt.Printf("%s", cmdLineOut)
 	if err != nil {
-		fmt.Println("Failed to execute run_benchmark.sh")
+		fmt.Println("Failed to execute prepare_benchmark.sh")
 		log.Fatalln(err)
 		return err
 	}
-	log.Printf("%s", cmdLineOut)
 
 	genWorkload(*benchmarkConfig)
 
@@ -107,7 +107,8 @@ func prepBenchmark(config BenchmarkConfig) ([]byte, error) {
 	params := append(scriptName, numCommands...)
 	params = append(params, olPath...)
 	params = append(params, registryMachines...)
-	return exec.Command("/bin/sh", params...).Output()
+	//fmt.Println(exec.Command("/bin/sh", "ls").Output())
+	return exec.Command("/bin/bash", params...).CombinedOutput()
 }
 
 // Generate synthetic workload based on benchmark config
@@ -132,7 +133,7 @@ func genWorkload(config BenchmarkConfig) {
 	for i := 0; i < numCommands; i++ {
 		// Create Job template
 		job := &Job{}
-		job.url = url
+		job.url = url + "/" + LAMBDA_BASE + strconv.Itoa(i)
 		job.cmds = config.Cmds[i].Cmd
 		job.lambda = LAMBDA_BASE + string(i)
 		addLambdaRequests(WorkerPools[i], job)
@@ -187,6 +188,7 @@ func singleLambdaRequest(job Job) int64 {
 	_, err := http.Post(job.url, "text/plain", bytes.NewBufferString(job.cmds))
 	if err != nil {
 		log.Fatalln(err)
+		fmt.Println(err)
 	}
 	end_time := time.Now().UnixNano()
 	return end_time - start_time
