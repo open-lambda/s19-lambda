@@ -3,6 +3,7 @@ PWD = $(shell pwd)
 LAMBDA_BIN=lambda/bin
 
 WORKER_GO_FILES = $(shell find worker/ -name '*.go')
+BENCHMARK_GO_FILES = $(shell find benchmark/ -name '*.go')
 LAMBDA_FILES = $(shell find lambda)
 POOL_FILES = $(shell find cache-entry)
 
@@ -55,12 +56,13 @@ GO = $(abspath ./hack/go.sh)
 GO_PATH = hack/go
 WORKER_DIR = $(GO_PATH)/src/github.com/open-lambda/open-lambda/worker
 ADMIN_DIR = $(GO_PATH)/src/github.com/open-lambda/open-lambda/worker/admin
+BENCHMARK_DIR = $(GO_PATH)/src/github.com/open-lambda/s19-lambda/benchmark/benchmark
 
 LAMBDA_DIR = $(abspath ./lambda)
 PIPBENCH_DIR = $(abspath ./pipbench)
 
 .PHONY: all
-all: clean-test .git/hooks/pre-commit sock/sock-init imgs/lambda bin/admin
+all: clean-test .git/hooks/pre-commit sock/sock-init imgs/lambda bin/admin bin/benchmark
 
 .git/hooks/pre-commit: util/pre-commit
 	cp util/pre-commit .git/hooks/pre-commit
@@ -77,6 +79,11 @@ bin/admin: $(WORKER_GO_FILES)
 	cd $(ADMIN_DIR) && $(GO) install
 	mkdir -p bin
 	cp $(GO_PATH)/bin/admin ./bin
+
+bin/benchmark: $(BENCHMARK_GO_FILES)
+    cd $(BENCHMARK_DIR) && $(GO) install
+    cp $(GO_PATH)/bin/benchmark ./bin
+
 
 .PHONY: test-all test-sock-all test-docker-all test-cluster
 
