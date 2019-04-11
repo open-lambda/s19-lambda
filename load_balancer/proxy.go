@@ -20,11 +20,15 @@ type Proxy struct {
 	Port int
 	Scheme string
 	Policy string
+	LoadFormula string
 	Servers []Server
 	RequestServerMap map[string]*Server
 	MapLock sync.RWMutex
 	LoadHigh float64
 	LoadLow float64
+	Connections int `json:"-"`
+	MaxConn int // max num of connections for the whole system
+	ConnCond *sync.Cond `json:"-"` // condional variable for connections
 }
 
 func (proxy *Proxy) origin() string {
@@ -70,7 +74,7 @@ func (proxy *Proxy)roundRobinChooseServer(ignoreList []string) *Server {
 	firstAttempt := true
 	nextServerIndex := (RRServerIdx + 1) % len(proxy.Servers)
 	for firstAttempt || (nextServerIndex != (RRServerIdx + 1)) {
-		server := proxy.Servers[nextServerIndex]
+		server := &proxy.Servers[nextServerIndex]
 		shouldIgnore := false
 		for _, ignoreServerName := range ignoreList {
 			if server.Name == ignoreServerName {
@@ -84,8 +88,10 @@ func (proxy *Proxy)roundRobinChooseServer(ignoreList []string) *Server {
 			continue
 		}
 		RRServerIdx = nextServerIndex
+		server.ConnLock.Lock()
 		server.Connections += 1
-		return &server
+		server.ConnLock.Unlock()
+		return server
 	}
 	return nil
 }
@@ -97,7 +103,8 @@ func (proxy *Proxy)lardChooseServer(ignoreList []string, r *http.Request) *Serve
 	targetServer, ok := proxy.RequestServerMap[path]
 	proxy.MapLock.RUnlock()
 	if (ok) {
-		if(targetServer.GetLoad() >= proxy.LoadHigh && leastLoadServer.GetLoad() < proxy.LoadLow || targetServer.GetLoad()  >= 2 * proxy.LoadHigh){
+		// impose a limit on targetServer's queue size
+		if(targetServer.GetLoad(proxy.LoadFormula) >= proxy.LoadHigh && leastLoadServer.GetLoad(proxy.LoadFormula) < proxy.LoadLow || targetServer.GetLoad(proxy.LoadFormula) >= 2 * proxy.LoadHigh || targetServer.MaxConn != -1 && targetServer.Connections >= targetServer.MaxConn){
 			targetServer = leastLoadServer
 		}
 		shouldIgnore := false
@@ -127,7 +134,11 @@ func (proxy *Proxy) getLeastLoad(ignoreList []string) *Server{
 	var minLoad = 1.0
 	for i:=0; i < len(proxy.Servers); i++{
 		server := &proxy.Servers[i]
-		var curLoad = server.GetLoad()
+		// enforce a limit on worker's queue size
+		if server.Connections > server.MaxConn {
+			continue
+		}
+		var curLoad = server.GetLoad(proxy.LoadFormula)
 		if curLoad < minLoad {
 			minLoad = curLoad
 			targetServer = server
@@ -200,12 +211,12 @@ func (proxy *Proxy)ReverseProxy(w http.ResponseWriter, r *http.Request, server *
 		return 0, err
 	}
 
+	w.WriteHeader(respStruct.ResponseCode)
+
 	// buffer := bytes.NewBuffer(bodyBytes)
 	for k, v := range respStruct.ResponseHeader {
 		w.Header().Set(k, strings.Join(v, ";"))
 	}
-
-	w.WriteHeader(respStruct.ResponseCode)
 
 	// io.Copy(w, buffer)
 	// realBody, _ := ioutil.ReadAll(respStruct.ResponseBody)
@@ -238,7 +249,9 @@ func (proxy *Proxy)attemptServers(w http.ResponseWriter, r *http.Request, ignore
 	LogInfo("Sending to server: " + server.Name)
 
 	_, err := proxy.ReverseProxy(w, r, server)
+	server.ConnLock.Lock()
 	server.Connections -= 1
+	server.ConnLock.Unlock()
 
 	if err != nil && strings.Contains(err.Error(), "connection refused") {
 		LogWarn("Server did not respond: " + server.Name)
@@ -250,7 +263,21 @@ func (proxy *Proxy)attemptServers(w http.ResponseWriter, r *http.Request, ignore
 }
 
 func (proxy *Proxy)handler(w http.ResponseWriter, r *http.Request) {
+	// wait on cond var when num of connections to proxy hits limit
+	proxy.ConnCond.L.Lock()
+	for proxy.MaxConn != -1 && proxy.Connections >= proxy.MaxConn {
+		proxy.ConnCond.Wait()	
+	}
+	proxy.Connections += 1
+	proxy.ConnCond.L.Unlock()
+	
 	proxy.attemptServers(w, r, []string{})
+	// after served a request, decrease num of connections, and wake up all other routines waiting
+	proxy.ConnCond.L.Lock()
+	proxy.Connections -= 1
+	proxy.ConnCond.L.Unlock()
+
+	proxy.ConnCond.Broadcast()	
 }
 
 func (proxy *Proxy)statusHandler(w http.ResponseWriter, r *http.Request) {

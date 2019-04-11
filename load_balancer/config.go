@@ -9,6 +9,7 @@ import (
 )
 
 const configName string = "config.yml"
+const defaultServerMaxConn int = 2000
 
 func validation(condition bool, errorMessage string) string {
 	if condition {
@@ -79,8 +80,20 @@ func SetDefaultValues(proxy *Proxy) {
 		proxy.Policy = "RoundRobin"
 	}
 
+	if proxy.LoadFormula == "" {
+		proxy.LoadFormula = "DominantResourceConnections"
+	}
+
 	if proxy.Servers == nil {
 		proxy.Servers = []Server{}
+	}
+
+	for i, _ := range proxy.Servers {
+		server := &proxy.Servers[i]
+		// when user DIT NOT SPECIFY max num of connections, use default value server.MaxConn = 2000
+		if server.MaxConn == 0 { 
+			server.MaxConn = defaultServerMaxConn
+		} 
 	}
 
 	if proxy.LoadHigh == 0.0 {
@@ -88,11 +101,23 @@ func SetDefaultValues(proxy *Proxy) {
 	}
 
 	if proxy.LoadLow == 0.0 {
-		proxy.LoadLow = 0.3
+		proxy.LoadLow = 0.2
 	}
 
-	if proxy.RequestServerMap == nil{
+	if proxy.RequestServerMap == nil {
 		proxy.RequestServerMap = make(map[string]*Server)
+	}
+
+	if proxy.MaxConn == 0 {
+		for _, server := range proxy.Servers {
+			// when user specify no size limit for any worker queue, 
+			// server queue also will not have size limit
+			if server.MaxConn == -1 {
+				proxy.MaxConn = -1
+				break
+			}
+			proxy.MaxConn += server.MaxConn
+		}	
 	}
 }
 
@@ -115,6 +140,9 @@ func ReadConfig(config_file string) (*Proxy, error) {
 	}
 
 	SetDefaultValues(proxy)
+
+	lock := &sync.Mutex{}
+	proxy.ConnCond = sync.NewCond(lock)
 
 	err = validateFields(proxy)
 	if err != nil {

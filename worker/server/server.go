@@ -16,7 +16,6 @@ import (
 	"github.com/open-lambda/open-lambda/worker/benchmarker"
 	"github.com/open-lambda/open-lambda/worker/config"
 	"github.com/open-lambda/open-lambda/worker/handler"
-
 )
 
 const (
