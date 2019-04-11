@@ -51,6 +51,7 @@ type HandlerManager struct {
 	mutex       sync.Mutex
 	hms         *HandlerManagerSet
 	handlers    *list.List
+	lru         *HandlerLRU
 	hElements   map[*Handler]*list.Element
 	workingDir  string
 	maxHandlers int
@@ -160,6 +161,7 @@ func (hms *HandlerManagerSet) Get(name string) (h *Handler, err error) {
 		}
 
 		hm = hms.hmMap[name]
+		hm.lru = NewHandlerLRU(hm)
 	}
 
 	// find or create handler
@@ -182,6 +184,7 @@ func (hms *HandlerManagerSet) Get(name string) (h *Handler, err error) {
 		h.mutex.Lock()
 		if h.runners == 0 {
 			hms.lru.Remove(h)
+			hm.lru.Remove(h)
 		}
 
 		h.runners += 1
@@ -426,24 +429,23 @@ func (h *Handler) RunFinish() {
 			log.Printf("Could not pause %v: %v!  Error: %v\n", h.name, h.id, err)
 		}
 
-		if handlerUsage(h) > hms.lru.soft_limit {
-			h.mutex.Unlock()
+		// if handlerUsage(h) > hms.lru.soft_limit {
+		// 	h.mutex.Unlock()
 
-			// we were potentially the last runner
-			// try to remove us from the handler manager
-			if err := hm.TryRemoveHandler(h); err == nil {
-				// we were the last one so... bye
-				go h.nuke()
-			}
-			return
-		}
+		// 	// we were potentially the last runner
+		// 	// try to remove us from the handler manager
+		// 	if err := hm.TryRemoveHandler(h); err == nil {
+		// 		// we were the last one so... bye
+		// 		go h.nuke()
+		// 	}
+		// 	return
+		// }
 
-		hm.AddHandler(h)
 		hms.lru.Add(h)
-	} else {
-		hm.AddHandler(h)
-	}
+		hm.lru.Add(h)
+	} 
 
+	hm.AddHandler(h)
 	h.mutex.Unlock()
 }
 
