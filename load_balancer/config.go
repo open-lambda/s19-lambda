@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"gopkg.in/yaml.v2"
 	"encoding/json"
+	"sync"
 )
 
 const configName string = "config.yml"

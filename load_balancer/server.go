@@ -20,10 +20,11 @@ type Server struct {
 
 // TODO: design a better formula
 func (server Server) GetLoadByConn() float64 {
-	load = float64(server.Connections) / float64(server.MaxConn)
+	load := float64(server.Connections) / float64(server.MaxConn)
 	if server.MaxConn == -1 {
 		load = float64(server.Connections) / float64(math.MaxInt64)
 	} 
+	return load
 }
 
 func (server Server) GetLoad(loadFormula string) float64 {
