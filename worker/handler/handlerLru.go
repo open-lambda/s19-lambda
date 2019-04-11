@@ -43,7 +43,7 @@ func NewHandlerLRU(hms *HandlerManagerSet, soft_limit int) *HandlerLRU {
 	return lru
 }
 
-func NewHandlerLRU(hm *HandlerManager) *HandlerLRU {
+func NewHmHandlerLRU(hm *HandlerManager) *HandlerLRU {
 	lru := &HandlerLRU{
 		hmap:       make(map[*Handler]*list.Element),
 		hm:         hm,
@@ -179,7 +179,7 @@ func (lru *HandlerLRU) EvictorByIdleTime() {
 		}
 
 		// evict 1/2 least-recently used handlers
-		numHandlerToEvict := lru.hqueue / 2
+		numHandlerToEvict := lru.hqueue.Len() / 2
 		for i := 0; i < numHandlerToEvict; i++ { 
 			lru.evictLastHandler()
 		}

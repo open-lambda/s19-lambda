@@ -161,7 +161,7 @@ func (hms *HandlerManagerSet) Get(name string) (h *Handler, err error) {
 		}
 
 		hm = hms.hmMap[name]
-		hm.lru = NewHandlerLRU(hm)
+		hm.lru = NewHmHandlerLRU(hm)
 	}
 
 	// find or create handler
