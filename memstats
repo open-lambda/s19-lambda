@@ -38,10 +38,10 @@ def get_USS(pid):
     vss, rss, pss, uss = measure(int(pid))
     return uss/1024
 
-def kill_process(pstr, mem):
+def kill_process(pstr, mem, mode):
     mem_request = mem
     pids = []
-    #mem_dict = {}
+    #mem_list = {}
     for lines in os.popen("ps ax | grep " + pstr + " | grep -v grep"):
         line = lines.split()
         pid = line[0]
@@ -49,33 +49,38 @@ def kill_process(pstr, mem):
        #os.kill(int(pid), signal.SIGKILL)
     print (pids)
 
-    mem_total, mem_dict = check_total_mem(pids)
+    mem_total, mem_list = check_total_mem(pids)
 
     #sort pids based on uss(increasing order)
     #sorted_dict = {}
-    mem_dict = copy.deepcopy(sorted(mem_dict.items(), key=lambda x: x[1]))
-    print(type(mem_dict))
+
+    #print(type(mem_list))
 
     print("total mem ", mem_total)
 
-    print("Sorted list ", mem_dict)
+
 
     if(mem_total >= int(mem)):
-        print("hello")
-        memory_aware_kill(mem_dict, mem)
-        #random_kill(pids, mem)
+        #print("hello")
+        if(mode == 'random'):
+            random_kill(pids, mem)
+        else:
+            mem_list = copy.deepcopy(sorted(mem_list.items(), key=lambda x: x[1]))
+            print("Sorted list ", mem_list)
+            memory_aware_kill(mem_list, mem)
+
     else:
-        print("Not enough memory available")
+        print("Enough memory not available")
     # i = 0
     # while i < len(pids):
     #     uss = get_USS(pids[i])
     #     if(uss >= mem_request):
-    #         mem_dict.update({pids[i]: uss})
+    #         mem_list.update({pids[i]: uss})
     #     i = i+1
     #
-    # if(len(mem_dict) > 0 ):
+    # if(len(mem_list) > 0 ):
     #     print("Processes:")
-    #     print(mem_dict)
+    #     print(mem_list)
     # else:
     #     print("No process found")
 
@@ -84,19 +89,19 @@ def kill_process(pstr, mem):
 def check_total_mem(pids):
     i = 0
     mem_total = 0
-    mem_dict = {}
+    mem_list = {}
 
     while i < len(pids):
         uss = get_USS(pids[i])
         mem_total = mem_total + int(uss)
-        mem_dict.update({pids[i]: int(uss)})
+        mem_list.update({pids[i]: int(uss)})
         i = i + 1
 
-    return mem_total, mem_dict
+    return mem_total, mem_list
 
 
 def random_kill(pids, mem):
-
+    print("Mode: Random Kill")
     i =0
     #mem = 0
     #total_mem = 0
@@ -108,10 +113,10 @@ def random_kill(pids, mem):
         uss = get_USS(pids[index])
         #total_mem = total_mem + uss
         print("index", index)
-        print("uss is", uss)
+        #print("uss is", uss)
         mem = mem - uss
-        print("current mem",mem)
-        print("kill process", pids[index])
+        #print("current mem",mem)
+        print("killing ", pids[index])
         freed_mem +=uss
         total_proc +=1
         #os.kill(int(pids[index]), signal.SIGKILL)
@@ -124,19 +129,22 @@ def random_kill(pids, mem):
     print("Total memory freed: ", freed_mem)
     print("Total processes killed: ", total_proc)
 
-def memory_aware_kill(mem_dict, mem):
+def memory_aware_kill(mem_list, mem):
+
+    print("Mode: Memory-aware Kill")
+
 
     #kill process with uss>=mem => this will kill only one process
     flag = 0
     freed_mem = 0
     total_proc = 0
     i = 0
-    while i < len(mem_dict):
-        if(mem_dict[i][1]>= mem):
+    while i < len(mem_list):
+        if(mem_list[i][1]>= mem):
             flag = 1
-            freed_mem +=mem_dict[i][1]
+            freed_mem +=mem_list[i][1]
             total_proc +=1
-            print("Killing ", mem_dict[i][0])
+            print("Killing ", mem_list[i][0])
             break
 
         i += 1
@@ -144,29 +152,29 @@ def memory_aware_kill(mem_dict, mem):
 
     #print("pid and uss are: ", pid, uss)
     #kill the least number of processes
-    print('value of i', i)
-    print('length', len(mem_dict))
+    #print('value of i', i)
+    #print('length', len(mem_list))
     if(not flag):
         while mem > 0:
             # kill the process with max memory,i.e the last from the list
-            mem = mem - mem_dict[i - 1][1]
-            freed_mem += mem_dict[i - 1][1]
+            mem = mem - mem_list[i - 1][1]
+            freed_mem += mem_list[i - 1][1]
             total_proc += 1
-            print("Killing ", mem_dict[i-1][0])
-            mem_dict.pop(i - 1)
-            #print(mem_dict)
+            print("Killing ", mem_list[i-1][0])
+            mem_list.pop(i - 1)
+            #print(mem_list)
              
             i = 0
 
-            while i < len(mem_dict):
-                if (mem_dict[i][1] >= mem):
-                    print('length', len(mem_dict))
+            while i < len(mem_list):
+                if (mem_list[i][1] >= mem):
+                    #print('length', len(mem_list))
                     flag = 1
-                    mem = mem - mem_dict[i][1]
-                    freed_mem += mem_dict[i][1]
+                    mem = mem - mem_list[i][1]
+                    freed_mem += mem_list[i][1]
                     total_proc += 1
-                    print("Killing ", mem_dict[i][0])
-                    mem_dict.pop(i)
+                    print("Killing ", mem_list[i][0])
+                    mem_list.pop(i)
                     break
                 i+=1
 
@@ -177,7 +185,7 @@ def memory_aware_kill(mem_dict, mem):
 
 
 if __name__ == '__main__':
-    kill_process('anjali', int(sys.argv[1]))
+    kill_process('anjali', int(sys.argv[1]), sys.argv[2])
 
 
 #
