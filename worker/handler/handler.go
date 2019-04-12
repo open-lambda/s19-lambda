@@ -485,11 +485,7 @@ func (h *Handler) nuke() {
 		log.Printf("failed to remove sandbox :: %v", err.Error())
 	}
 	if hms.GetMemUsage() <= 70{
-<<<<<<< HEAD
 		hms.queueCond.Broadcast()
-=======
-		hms.cond.Broadcast()
->>>>>>> 200ef6db912a969e61b0b1004be11956f30a09da
 	}
 }
 

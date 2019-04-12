@@ -15,7 +15,6 @@ type Server struct {
     CPUUsage float64 `json:"-"`
     MemUsage float64 `json:"-"`
     Connections int `json:"-"`
-    Connections int `json:"-"`
 	ConnLock *sync.Mutex `json:"-"`
 }
 
