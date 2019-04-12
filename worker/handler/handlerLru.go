@@ -39,7 +39,8 @@ func NewHandlerLRU(hms *HandlerManagerSet, soft_limit int) *HandlerLRU {
 	}
 	lru.soft_cond = sync.NewCond(&lru.mutex)
 	// TODO(tyler): start a configurable number of tasks
-	go lru.Evictor()
+	// go lru.Evictor()
+	log.Print("In NewHandlerLRU\n")	
 	return lru
 }
 
@@ -50,6 +51,7 @@ func NewHmHandlerLRU(hm *HandlerManager) *HandlerLRU {
 		hqueue:     list.New(),
 	}
 	go lru.EvictorByIdleTime()
+	log.Print("In NewHmandlerLRU\n")	
 	return lru
 }
 
@@ -77,7 +79,7 @@ func (lru *HandlerLRU) Add(handler *Handler) {
 	lru.hmap[handler] = entry
 	lru.last_add_time = time.Now()
 
-	if lru.size > lru.soft_limit {
+	if lru.soft_cond != nil && lru.size > lru.soft_limit {
 		lru.soft_cond.Signal()
 	}
 }
@@ -138,7 +140,6 @@ func (lru *HandlerLRU) Evictor() {
 		lru.hms.mutex.Unlock()
 
 		go h.nuke()
-
 	}
 }
 

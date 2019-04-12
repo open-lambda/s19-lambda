@@ -948,7 +948,7 @@ OPTIONS:
 				cli.IntFlag{
 					Name:  "port, p",
 					Usage: "Port range [`PORT`, `PORT`+n) will be used for workers",
-					Value: 8080,
+					Value: 7081,
 				},
 				cli.IntFlag{
 					Name:  "num-workers, n",

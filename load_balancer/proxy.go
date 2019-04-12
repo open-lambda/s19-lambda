@@ -98,7 +98,7 @@ func (proxy *Proxy)roundRobinChooseServer(ignoreList []string) *Server {
 
 func (proxy *Proxy)lardChooseServer(ignoreList []string, r *http.Request) *Server {
 	var path = r.URL.Path
-	var leastLoadServer = proxy.getLeastLoad(ignoreList)
+	var leastLoadServer = proxy.getLeastLoadServer(ignoreList)
 	proxy.MapLock.RLock()
 	targetServer, ok := proxy.RequestServerMap[path]
 	proxy.MapLock.RUnlock()
@@ -121,7 +121,9 @@ func (proxy *Proxy)lardChooseServer(ignoreList []string, r *http.Request) *Serve
 		targetServer = leastLoadServer
 	}
 	if targetServer != nil {
+		targetServer.ConnLock.Lock()
 		targetServer.Connections += 1
+		targetServer.ConnLock.Unlock()
 		proxy.MapLock.Lock()
 		proxy.RequestServerMap[path] = targetServer
 		proxy.MapLock.Unlock()
@@ -129,7 +131,7 @@ func (proxy *Proxy)lardChooseServer(ignoreList []string, r *http.Request) *Serve
 	return targetServer
 }
 
-func (proxy *Proxy) getLeastLoad(ignoreList []string) *Server{
+func (proxy *Proxy) getLeastLoadServer(ignoreList []string) *Server{
 	var targetServer *Server = nil
 	var minLoad = 1.0
 	for i:=0; i < len(proxy.Servers); i++{

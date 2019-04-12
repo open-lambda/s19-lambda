@@ -309,19 +309,19 @@ func Main(config_path string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	go func() {
-		for true{
-			total, free := mem_allfree()
-			var percent float64 = float64(free) / float64(total)
-			server.handlers.MemPercent = &percent
-			CPUUsage := cpuusage()
-			server.handlers.CPUPercent = &CPUUsage
-			server.handlers.MemFree = &free
-			server.handlers.MemTotal = &total
-			time.Sleep(1 * time.Second)
-			log.Printf("percent: %f\n", percent)
-		}
-	}()
+	// go func() {
+	// 	for true{
+	// 		total, free := mem_allfree()
+	// 		var percent float64 = float64(free) / float64(total)
+	// 		server.handlers.MemPercent = &percent
+	// 		CPUUsage := cpuusage()
+	// 		server.handlers.CPUPercent = &CPUUsage
+	// 		server.handlers.MemFree = &free
+	// 		server.handlers.MemTotal = &total
+	// 		time.Sleep(1 * time.Second)
+	// 		log.Printf("percent: %f\n", percent)
+	// 	}
+	// }()
 	if conf.Benchmark_file != "" {
 		benchmarker.CreateBenchmarkerSingleton(conf.Benchmark_file)
 	}
