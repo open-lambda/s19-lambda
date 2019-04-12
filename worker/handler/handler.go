@@ -181,6 +181,7 @@ func (hms *HandlerManagerSet) Get(name string) (h *Handler, err error) {
 
 		hm = hms.hmMap[name]
 		hm.lru = NewHmHandlerLRU(hm)
+		log.Print("after NewHmHandlerLRU\n")
 	}
 
 	// find or create handler
@@ -321,7 +322,7 @@ func (h *Handler) RunStart() (ch *sb.Channel, err error) {
 	// create sandbox if needed
 	if h.sandbox == nil {
 		hms.queueCond.L.Lock()
-		for *hms.LenQueue >= 1 || hms.GetMemUsage() >= 70{
+		for *hms.LenQueue >= 1 || hms.GetMemUsage() >= 70 {
 			hms.queueCond.Wait()
 		}
 		*hms.LenQueue += 1
@@ -484,7 +485,11 @@ func (h *Handler) nuke() {
 		log.Printf("failed to remove sandbox :: %v", err.Error())
 	}
 	if hms.GetMemUsage() <= 70{
+<<<<<<< HEAD
 		hms.queueCond.Broadcast()
+=======
+		hms.cond.Broadcast()
+>>>>>>> 200ef6db912a969e61b0b1004be11956f30a09da
 	}
 }
 
