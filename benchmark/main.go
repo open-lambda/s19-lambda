@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math"
+	"math/rand"
 	"net/http"
 	"os"
 	"os/exec"
@@ -25,9 +27,10 @@ type BenchmarkConfig struct{
 }
 
 type Command struct{
-	Cmd        string
-	NumThreads int
-	TotalCmds  int
+	Cmd        	string
+	NumThreads 	int
+	TotalCmds  	int
+	NumLambdas	int
 }
 
 type WorkerPool struct{
@@ -41,22 +44,27 @@ type WorkerPool struct{
 }
 
 type Job struct{
+	jobID		int
 	url			string
 	lambda 		string
 	cmds 		string
 }
 
 type PerfMetrics struct{
+	jobID		int
+	lambda		string
 	runTime 	int64
 }
 
 
-var LAMBDA_BASE = "lambda-"
+var LAMBDA_BASE = "hello_"
 var BENCHMARK_PREPARE_SCRIPT = "/mnt/lambda_scheduler/s19-lambda/benchmark/benchmark_prepare.sh"
+var RUN_LAMBDA_BASE = "/runLambda/"
 
 // WorkerPools consists a list of WorkerPool, one WorkerPool for each
 // Command in the corresponding config file.
 var WorkerPools []*WorkerPool
+var Metrics		[]PerfMetrics
 
 func startBenchmark(ctx *cli.Context) error {
 	conf := ctx.String("config")
@@ -71,13 +79,13 @@ func startBenchmark(ctx *cli.Context) error {
 		return err
 	}
 
-	cmdLineOut, err := prepBenchmark(*benchmarkConfig)
-	fmt.Printf("%s", cmdLineOut)
-	if err != nil {
-		fmt.Println("Failed to execute prepare_benchmark.sh")
-		log.Fatalln(err)
-		return err
-	}
+	//cmdLineOut, err := prepBenchmark(*benchmarkConfig)
+	//fmt.Printf("%s", cmdLineOut)
+	//if err != nil {
+	//	fmt.Println("Failed to execute prepare_benchmark.sh")
+	//	log.Fatalln(err)
+//		return err
+//	}
 
 	genWorkload(*benchmarkConfig)
 
@@ -133,13 +141,14 @@ func genWorkload(config BenchmarkConfig) {
 	for i := 0; i < numCommands; i++ {
 		// Create Job template
 		job := &Job{}
-		job.url = url + "/" + LAMBDA_BASE + strconv.Itoa(i)
+		job.url = url + RUN_LAMBDA_BASE + LAMBDA_BASE + strconv.Itoa(i+1)
 		job.cmds = config.Cmds[i].Cmd
-		job.lambda = LAMBDA_BASE + string(i)
+		job.lambda = LAMBDA_BASE + strconv.Itoa(i+1)
 		addLambdaRequests(WorkerPools[i], job)
 	}
 
 	runWorkload()
+	aggregateMetrics()
 }
 
 func makeUrl(host string, port int) string {
@@ -147,8 +156,10 @@ func makeUrl(host string, port int) string {
 }
 
 // Adds new lambda request to a worker pool, non-blocking call
-func addLambdaRequests(pool *WorkerPool, job *Job) {
+func addLambdaRequests(pool *WorkerPool, jobTemplate *Job) {
 	for i := 0; i < pool.numJobs; i++ {
+		job := jobTemplate
+		job.jobID = i
 		pool.jobs <- *job
 	}
 	close(pool.jobs)
@@ -170,8 +181,9 @@ func runWorkload() {
 func cmdWorker(jobs chan Job, wg*sync.WaitGroup) int64 {
 	defer wg.Done()
 	for job := range jobs {
-		perfMetrics := PerfMetrics{singleLambdaRequest(job)}
-		fmt.Printf("%d", perfMetrics)
+		perfMetrics := PerfMetrics{job.jobID,job.lambda,singleLambdaRequest(job)}
+		//fmt.Println(perfMetrics)
+		Metrics = append(Metrics, perfMetrics)
 	}
 
 	return 0
@@ -180,18 +192,59 @@ func cmdWorker(jobs chan Job, wg*sync.WaitGroup) int64 {
 func simpleTest(job Job) int64 {
 	time.Sleep(time.Second)
 	fmt.Printf("%s", job.cmds)
-	return 0
+	return int64(rand.Intn(10))
 }
 
 func singleLambdaRequest(job Job) int64 {
 	start_time := time.Now().UnixNano()
-	_, err := http.Post(job.url, "text/plain", bytes.NewBufferString(job.cmds))
+	fmt.Println(job.url)
+	resp, err := http.Post(job.url, "text/plain", bytes.NewBufferString(job.cmds))
 	if err != nil {
 		log.Fatalln(err)
 		fmt.Println(err)
 	}
+	body, err :=ioutil.ReadAll(resp.Body)
+	fmt.Println(string(body))
+	err = resp.Body.Close()
+	if err!=nil {
+		fmt.Println(err)
+	}
 	end_time := time.Now().UnixNano()
-	return end_time - start_time
+	return (end_time - start_time)/1000000
+}
+
+func aggregateMetrics() {
+	//fmt.Println(Metrics)
+	metricsMap := genMetricsMap()
+	for lambda, metrics := range metricsMap {
+		var mean = 0.0
+		var std = 0.0
+
+		for _, v := range metrics {
+			mean += float64(v)
+		}
+		mean = mean / float64(len(metrics))
+		for _, v := range metrics {
+			std += math.Pow(float64(v)-mean, 2)
+		}
+		std = math.Sqrt(std/float64(len(metrics)-1))
+		fmt.Printf("%v has average run time: %f ms, with standard deviation: %f ms \n", lambda, mean, std)
+	}
+}
+
+func genMetricsMap() map[string]map[int]int64 {
+	metricsMap := make(map[string]map[int]int64)
+	for _, metric := range Metrics {
+		jobID := metric.jobID
+		lambda := metric.lambda
+		runtime := metric.runTime
+
+		if metricsMap[lambda] == nil {
+			metricsMap[lambda] = make(map[int]int64)
+		}
+		metricsMap[lambda][jobID] = runtime
+	}
+	return metricsMap
 }
 
 
@@ -233,3 +286,4 @@ OPTIONS:
 		log.Fatal(err)
 	}
 }
+

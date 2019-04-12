@@ -20,6 +20,8 @@ import (
 	"github.com/open-lambda/open-lambda/worker/registry"
 
 	sb "github.com/open-lambda/open-lambda/worker/sandbox"
+
+	"github.com/shirou/gopsutil/mem"
 )
 
 // HandlerSet represents a collection of Handlers of a worker server. It
@@ -38,12 +40,13 @@ type HandlerManagerSet struct {
 	hhits      *int64
 	ihits      *int64
 	misses     *int64
-	MemTotal   *int
-	MemFree    *int
-	MemPercent *float64
-	CPUPercent *float64
+	// MemTotal   *int
+	// MemFree    *int
+	// MemPercent *float64
+	// CPUPercent *float64
 	LenQueue   *int64
-	cond       *sync.Cond
+	queueCond  *sync.Cond
+	evictCond  *sync.Cond
 }
 
 type HandlerManager struct {
@@ -113,10 +116,10 @@ func NewHandlerManagerSet(opts *config.Config) (hms *HandlerManagerSet, err erro
 	var ihits int64 = 0
 	var misses int64 = 0
 	var lenQueue int64 = 0
-	var memPercent float64 = 0.0
-	var cpuPercent float64 = 0.0
-	var memTotal int = 0  
-	var memFree  int = 0
+	// var memPercent float64 = 0.0
+	// var cpuPercent float64 = 0.0
+	// var memTotal int = 0  
+	// var memFree  int = 0
 	hms = &HandlerManagerSet{
 		hmMap:      make(map[string]*HandlerManager),
 		regMgr:     rm,
@@ -129,21 +132,37 @@ func NewHandlerManagerSet(opts *config.Config) (hms *HandlerManagerSet, err erro
 		hhits:      &hhits,
 		ihits:      &ihits,
 		misses:     &misses,
-		MemTotal:    &memTotal,
-		MemFree:     &memFree,
-		MemPercent: &memPercent,
-		CPUPercent: &cpuPercent,
+		// MemTotal:    &memTotal,
+		// MemFree:     &memFree,
+		// MemPercent: &memPercent,
+		// CPUPercent: &cpuPercent,
 		LenQueue:   &lenQueue,
 	}
 	m := &sync.Mutex{}
-	hms.cond = sync.NewCond(m)
+	hms.queueCond = sync.NewCond(m)
 	hms.lru = NewHandlerLRU(hms, opts.Handler_cache_size) //kb
+	log.Print("after NewHandlerLRU\n")
 
 	return hms, nil
 }
 
+
+var MemUsage float64 = 0.0
+var MemLastUpdateTime time.Time = time.Now()
+
+func (hms *HandlerManagerSet) GetMemUsage() float64 {
+	if (time.Since(MemLastUpdateTime)) > time.Second {
+		v, _ := mem.VirtualMemory()
+		total, free := int(v.Total), int(v.Free)
+		MemUsage = 1.0 - float64(free) / float64(total)
+		MemLastUpdateTime = time.Now()
+	}
+	return MemUsage
+}
+
 // Get always returns a Handler, creating one if necessarily.
 func (hms *HandlerManagerSet) Get(name string) (h *Handler, err error) {
+	log.Print("In Get()")
 	hms.mutex.Lock()
 
 	hm := hms.hmMap[name]
@@ -301,12 +320,12 @@ func (h *Handler) RunStart() (ch *sb.Channel, err error) {
 
 	// create sandbox if needed
 	if h.sandbox == nil {
-		hms.cond.L.Lock()
-		for *hms.LenQueue >= 1 || *hms.MemPercent >= 70{
-			hms.cond.Wait()
+		hms.queueCond.L.Lock()
+		for *hms.LenQueue >= 1 || hms.GetMemUsage() >= 70{
+			hms.queueCond.Wait()
 		}
 		*hms.LenQueue += 1
-		hms.cond.L.Unlock()
+		hms.queueCond.L.Unlock()
 
 		hit := false
 
@@ -353,10 +372,10 @@ func (h *Handler) RunStart() (ch *sb.Channel, err error) {
 			}
 		}
 
-		hms.cond.L.Lock()
+		hms.queueCond.L.Lock()
 		*hms.LenQueue -= 1
-		hms.cond.L.Unlock()
-		hms.cond.Broadcast()
+		hms.queueCond.L.Unlock()
+		hms.queueCond.Broadcast()
 		// use StdoutPipe of olcontainer to sync with lambda server
 		ready := make(chan bool, 1)
 		defer close(ready)
@@ -447,6 +466,10 @@ func (h *Handler) RunFinish() {
 
 	hm.AddHandler(h)
 	h.mutex.Unlock()
+
+	if hms.GetMemUsage() <= 70 {
+		hms.queueCond.Broadcast()
+	}
 }
 
 func (h *Handler) nuke() {
@@ -460,8 +483,8 @@ func (h *Handler) nuke() {
 	if err := h.sandbox.Remove(); err != nil {
 		log.Printf("failed to remove sandbox :: %v", err.Error())
 	}
-	if *hms.MemPercent <= 70{
-		hms.cond.Broadcast()
+	if hms.GetMemUsage() <= 70{
+		hms.queueCond.Broadcast()
 	}
 }
 

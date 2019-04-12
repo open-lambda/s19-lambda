@@ -10,7 +10,8 @@ import (
 )
 
 const configName string = "config.yml"
-const defaultServerMaxConn int = 2000
+// const defaultServerMaxConn int = 2000
+const defaultServerMaxConn int = -1
 
 func validation(condition bool, errorMessage string) string {
 	if condition {
@@ -70,7 +71,7 @@ func SetDefaultValues(proxy *Proxy) {
 	}
 
 	if proxy.Port == 0 {
-		proxy.Port = 8079
+		proxy.Port = 7079
 	}
 
 	if proxy.Scheme == "" {
@@ -91,7 +92,7 @@ func SetDefaultValues(proxy *Proxy) {
 
 	for i, _ := range proxy.Servers {
 		server := &proxy.Servers[i]
-		// when user DIT NOT SPECIFY max num of connections, use default value server.MaxConn = 2000
+		// when user DIT NOT SPECIFY max num of connections for server, use default value
 		if server.MaxConn == 0 { 
 			server.MaxConn = defaultServerMaxConn
 		} 
