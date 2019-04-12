@@ -9,12 +9,12 @@ import (
 type Server struct {
     Name string
     Scheme string
-    Host string
-    Port int
-    Cpu float64
-    MemPercent float64
-    Connections int `json:"-"`
+    Host string 
+	Port int
 	MaxConn int
+    CPUUsage float64
+    MemUsage float64
+    Connections int `json:"-"`
 	ConnLock *sync.Mutex `json:"-"`
 }
 
@@ -31,13 +31,13 @@ func (server Server) GetLoad(loadFormula string) float64 {
 	var load float64
 	switch loadFormula {
 	case "AverageResource":
-		load = 0.5 * server.MemPercent + 0.5 * server.Cpu
+		load = 0.5 * server.MemUsage + 0.5 * server.CPUUsage
 	case "AverageResourceConnections":
-		load = (server.MemPercent + server.Cpu + server.GetLoadByConn()) / 3.0 
+		load = (server.MemUsage + server.CPUUsage + server.GetLoadByConn()) / 3.0 
 	case "DominantResource":
-		load = math.Max(server.MemPercent, server.Cpu)
+		load = math.Max(server.MemUsage, server.CPUUsage)
 	case "DominantResourceConnections":
-		load = math.Max(math.Max(server.MemPercent, server.Cpu), server.GetLoadByConn())
+		load = math.Max(math.Max(server.MemUsage, server.CPUUsage), server.GetLoadByConn())
 	case "Connections":
 		load = server.GetLoadByConn()
 	}

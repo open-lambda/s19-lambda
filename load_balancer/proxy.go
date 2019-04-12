@@ -23,7 +23,7 @@ type Proxy struct {
 	LoadFormula string
 	Servers []Server
 	RequestServerMap map[string]*Server
-	MapLock sync.RWMutex
+	MapLock sync.RWMutex `json:"-"`
 	LoadHigh float64
 	LoadLow float64
 	Connections int `json:"-"`
@@ -65,6 +65,9 @@ func (proxy *Proxy)chooseServer(ignoreList []string) *Server {
 	return &proxy.Servers[minIndex]
 }
 
+var LeastLoadMutex = &sync.Mutex{}
+var LeastLoadIdx int = 0
+
 var RRServerIdx int = 0
 
 func (proxy *Proxy)roundRobinChooseServer(ignoreList []string) *Server {
@@ -98,14 +101,13 @@ func (proxy *Proxy)roundRobinChooseServer(ignoreList []string) *Server {
 
 func (proxy *Proxy)lardChooseServer(ignoreList []string, r *http.Request) *Server {
 	var path = r.URL.Path
-	var leastLoadServer = proxy.getLeastLoad(ignoreList)
 	proxy.MapLock.RLock()
 	targetServer, ok := proxy.RequestServerMap[path]
 	proxy.MapLock.RUnlock()
 	if (ok) {
 		// impose a limit on targetServer's queue size
-		if(targetServer.GetLoad(proxy.LoadFormula) >= proxy.LoadHigh && leastLoadServer.GetLoad(proxy.LoadFormula) < proxy.LoadLow || targetServer.GetLoad(proxy.LoadFormula) >= 2 * proxy.LoadHigh || targetServer.MaxConn != -1 && targetServer.Connections >= targetServer.MaxConn){
-			targetServer = leastLoadServer
+		if(targetServer.GetLoad(proxy.LoadFormula) >= proxy.LoadHigh && proxy.getLeastLoad(false).GetLoad(proxy.LoadFormula) < proxy.LoadLow || targetServer.GetLoad(proxy.LoadFormula) >= 2 * proxy.LoadHigh || targetServer.MaxConn != -1 && targetServer.Connections >= targetServer.MaxConn){
+			targetServer = proxy.getLeastLoad(true)
 		}
 		shouldIgnore := false
 		for _, ignoreServerName := range ignoreList {
@@ -118,7 +120,7 @@ func (proxy *Proxy)lardChooseServer(ignoreList []string, r *http.Request) *Serve
 			targetServer = nil
 		}
 	} else {
-		targetServer = leastLoadServer
+		targetServer = proxy.getLeastLoad(true)
 	}
 	if targetServer != nil {
 		targetServer.Connections += 1
@@ -129,13 +131,21 @@ func (proxy *Proxy)lardChooseServer(ignoreList []string, r *http.Request) *Serve
 	return targetServer
 }
 
-func (proxy *Proxy) getLeastLoad(ignoreList []string) *Server{
+func (proxy *Proxy) getLeastLoad(moveIndex bool) *Server{
 	var targetServer *Server = nil
 	var minLoad = 1.0
+	var startIdx = 0
+	if moveIndex {
+		LeastLoadMutex.Lock()
+		startIdx = LeastLoadIdx
+		LeastLoadIdx = (LeastLoadIdx + 1) % len(proxy.Servers)
+		LeastLoadMutex.Unlock()
+	}
 	for i:=0; i < len(proxy.Servers); i++{
-		server := &proxy.Servers[i]
+		
+		server := &proxy.Servers[(startIdx + i) % len(proxy.Servers)]
 		// enforce a limit on worker's queue size
-		if server.Connections > server.MaxConn {
+		if server.MaxConn != -1 && server.Connections > server.MaxConn {
 			continue
 		}
 		var curLoad = server.GetLoad(proxy.LoadFormula)
@@ -192,16 +202,16 @@ func (proxy *Proxy)ReverseProxy(w http.ResponseWriter, r *http.Request, server *
 		proxy.MapLock.RLock()
 		targetServer, _ := proxy.RequestServerMap[path]
 		proxy.MapLock.RUnlock()
-		targetServer.Cpu = respStruct.CPUUsage
-		targetServer.MemPercent = 1.0 - float64(respStruct.FreeMem) / float64(respStruct.TotalMem)
+		targetServer.CPUUsage = respStruct.CPUUsage
+		targetServer.MemUsage = 1.0 - float64(respStruct.FreeMem) / float64(respStruct.TotalMem)
 	}
 
 	LogInfo("Server load condition:")
 	for _, server := range proxy.Servers {
 		// LogInfo("Piggybacked Info: ")
 		LogInfo(server.Name)
-		LogInfo(fmt.Sprintf("	Memory Usage: %f%%", server.MemPercent*100))
-		LogInfo(fmt.Sprintf("	CPU Usage: %f%%", server.Cpu))
+		LogInfo(fmt.Sprintf("	Memory Usage: %f%%", server.MemUsage*100))
+		LogInfo(fmt.Sprintf("	CPU Usage: %f%%", server.CPUUsage))
 		LogInfo(fmt.Sprintf("	Current Serving Requests: %d", server.Connections))
 	}
 
@@ -249,6 +259,7 @@ func (proxy *Proxy)attemptServers(w http.ResponseWriter, r *http.Request, ignore
 	LogInfo("Sending to server: " + server.Name)
 
 	_, err := proxy.ReverseProxy(w, r, server)
+
 	server.ConnLock.Lock()
 	server.Connections -= 1
 	server.ConnLock.Unlock()

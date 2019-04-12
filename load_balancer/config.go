@@ -10,7 +10,7 @@ import (
 )
 
 const configName string = "config.yml"
-const defaultServerMaxConn int = 2000
+const defaultServerMaxConn int = -1
 
 func validation(condition bool, errorMessage string) string {
 	if condition {
@@ -70,7 +70,7 @@ func SetDefaultValues(proxy *Proxy) {
 	}
 
 	if proxy.Port == 0 {
-		proxy.Port = 8079
+		proxy.Port = 7079
 	}
 
 	if proxy.Scheme == "" {
@@ -78,11 +78,11 @@ func SetDefaultValues(proxy *Proxy) {
 	}
 
 	if proxy.Policy == "" {
-		proxy.Policy = "RoundRobin"
+		proxy.Policy = "LARD"
 	}
 
 	if proxy.LoadFormula == "" {
-		proxy.LoadFormula = "DominantResourceConnections"
+		proxy.LoadFormula = "Connections"
 	}
 
 	if proxy.Servers == nil {
@@ -110,15 +110,19 @@ func SetDefaultValues(proxy *Proxy) {
 	}
 
 	if proxy.MaxConn == 0 {
-		for _, server := range proxy.Servers {
-			// when user specify no size limit for any worker queue, 
-			// server queue also will not have size limit
-			if server.MaxConn == -1 {
-				proxy.MaxConn = -1
-				break
-			}
-			proxy.MaxConn += server.MaxConn
-		}	
+		if len(proxy.Servers) == 0 {
+			proxy.MaxConn = -1
+		} else {
+			for _, server := range proxy.Servers {
+				// when user specify no size limit for any worker queue, 
+				// server queue also will not have size limit
+				if server.MaxConn == -1 {
+					proxy.MaxConn = -1
+					break
+				}
+				proxy.MaxConn += server.MaxConn
+			}	
+		}
 	}
 }
 
@@ -144,6 +148,11 @@ func ReadConfig(config_file string) (*Proxy, error) {
 
 	lock := &sync.Mutex{}
 	proxy.ConnCond = sync.NewCond(lock)
+
+	for i, _ := range proxy.Servers {
+		server := &proxy.Servers[i]
+		server.ConnLock = &sync.Mutex{}
+	}
 
 	err = validateFields(proxy)
 	if err != nil {
