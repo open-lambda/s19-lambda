@@ -1,0 +1,22 @@
+{
+	"Host": "localhost",
+	"Port": 0,
+	"Scheme": "http",
+    "Policy": "LARD",
+	"Servers": [
+		{
+			"Name": "Server A",
+			"Scheme": "http",
+			"Host": "cp-1",
+			"Port": 8081,
+			"Connections": 0
+		}, 
+		{
+			"Name": "Server B",
+			"Scheme": "http",
+			"Host": "cp-2",
+			"Port": 8081,
+			"Connections": 0
+		}
+	]
+}

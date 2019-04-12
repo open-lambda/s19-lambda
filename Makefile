@@ -56,7 +56,7 @@ GO = $(abspath ./hack/go.sh)
 GO_PATH = hack/go
 WORKER_DIR = $(GO_PATH)/src/github.com/open-lambda/open-lambda/worker
 ADMIN_DIR = $(GO_PATH)/src/github.com/open-lambda/open-lambda/worker/admin
-BENCHMARK_DIR = $(GO_PATH)/src/github.com/open-lambda/s19-lambda/benchmark/benchmark
+BENCHMARK_DIR = $(GO_PATH)/src/github.com/open-lambda/s19-lambda/benchmark
 
 LAMBDA_DIR = $(abspath ./lambda)
 PIPBENCH_DIR = $(abspath ./pipbench)
@@ -81,8 +81,8 @@ bin/admin: $(WORKER_GO_FILES)
 	cp $(GO_PATH)/bin/admin ./bin
 
 bin/benchmark: $(BENCHMARK_GO_FILES)
-    cd $(BENCHMARK_DIR) && $(GO) install
-    cp $(GO_PATH)/bin/benchmark ./bin
+	cd $(BENCHMARK_DIR) && $(GO) install
+	cp $(GO_PATH)/bin/benchmark ./bin
 
 
 .PHONY: test-all test-sock-all test-docker-all test-cluster
