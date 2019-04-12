@@ -1,0 +1,2 @@
+gcc ./supermall.c -o supermall
+./supermall
