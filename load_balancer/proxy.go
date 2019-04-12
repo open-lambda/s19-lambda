@@ -123,7 +123,9 @@ func (proxy *Proxy)lardChooseServer(ignoreList []string, r *http.Request) *Serve
 		targetServer = proxy.getLeastLoad(true)
 	}
 	if targetServer != nil {
+		targetServer.ConnLock.Lock()
 		targetServer.Connections += 1
+		targetServer.ConnLock.Unlock()
 		proxy.MapLock.Lock()
 		proxy.RequestServerMap[path] = targetServer
 		proxy.MapLock.Unlock()
@@ -195,7 +197,6 @@ func (proxy *Proxy)ReverseProxy(w http.ResponseWriter, r *http.Request, server *
 		fmt.Print(err)
 		LogErr("json unmarshal failed")
 	}
-
 
 	if proxy.Policy == "LARD" {
 		var path = r.URL.Path

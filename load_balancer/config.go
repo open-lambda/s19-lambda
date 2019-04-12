@@ -91,7 +91,7 @@ func SetDefaultValues(proxy *Proxy) {
 
 	for i, _ := range proxy.Servers {
 		server := &proxy.Servers[i]
-		// when user DIT NOT SPECIFY max num of connections, use default value server.MaxConn = 2000
+		// when user DIT NOT SPECIFY max num of connections for server, use default value
 		if server.MaxConn == 0 { 
 			server.MaxConn = defaultServerMaxConn
 		} 

@@ -12,8 +12,9 @@ type Server struct {
     Host string 
 	Port int
 	MaxConn int
-    CPUUsage float64
-    MemUsage float64
+    CPUUsage float64 `json:"-"`
+    MemUsage float64 `json:"-"`
+    Connections int `json:"-"`
     Connections int `json:"-"`
 	ConnLock *sync.Mutex `json:"-"`
 }

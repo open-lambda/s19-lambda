@@ -382,7 +382,7 @@ func rethinkdb(ctx *cli.Context) error {
 	return nil
 }
 
-// worker_exec corresponds to the "worker-exec" command of the admin tool.
+// worker_exec worker-exec" command of the admin tool.
 func worker_exec(ctx *cli.Context) error {
 	conf := ctx.String("config")
 

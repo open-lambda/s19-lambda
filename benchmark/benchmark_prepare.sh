@@ -50,4 +50,8 @@ done
 now=$(date +"%T")
 echo "Current time : $now"
 
-
+CUR_DIR=$(cd $(dirname $0); pwd)
+cd /mnt/lambda_scheduler/s19-lambda
+cp $CUR_DIR/load_balancer.json my-cluster/config/load_balancer.json
+./bin/admin load-balancer -cluster=my-cluster
+./bin/admin status -cluster=my-cluster
