@@ -58,3 +58,5 @@
 /sock/sock-init
 /testing/test-cluster
 /my-cluster
+/benchmark/handlers/
+
