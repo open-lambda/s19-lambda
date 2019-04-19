@@ -29,12 +29,6 @@ def handler(event):
 
     cmds = event["cmds"]
 
-    # # sleep until specified time
-    # wait_util = int(cmds["sleep"])
-    # cmds.pop("sleep", None)
-
-    # while time.time() * 1000 < wait_util:
-    #     continue
 
     basic_info = []
     for cmd in cmds:
@@ -49,12 +43,9 @@ def handler(event):
         basic_info.append(str(res))
 
     #tm_ed = time.time() * 1000
-
-    # record coldstart time, ?????????????????????????????????????????????????? Why cold start?
     #timing_info = [fstr(tm_st), fstr(tm_ed), fstr(tm_ed - tm_st)]
 
     res = '#'.join(basic_info)
-    #res = ""
     return res
 
 

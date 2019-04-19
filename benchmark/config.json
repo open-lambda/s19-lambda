@@ -8,10 +8,10 @@
    ],
    "cmds": [
       {
-         "cmd": "{\"cmds\":[[\"cpu\", 50000], [\"mem\", 10000000, 0.5]]}",
+         "cmd": "{\"input\":\"hello\"}",
          "numThreads": 100,
-         "cmdPerLambda": 100,
-         "numLambdas": 400
+         "cmdPerLambda": 1000,
+         "numLambdas": 1
       }
    ]
 }

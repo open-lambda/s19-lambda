@@ -34,14 +34,11 @@ for i in $( eval echo {1..$num_of_machines}); do
 	ssh root@${machine} "make -C $openlambda_path clean"
 	ssh root@${machine} "make -C $openlambda_path"
 	ssh root@${machine} "cd ${openlambda_path}; ./bin/admin new --cluster=my-cluster"
+	ssh root@${machine} "pip2 install -r /mnt/pipbench/requirements.txt  --index-url http://localhost:9199/simple/ --target=/mnt/lambda_scheduler/s19-lambda/my-cluster/base/packages"
 	scp ${openlambda_path}/benchmark/template.json root@${machine}:${openlambda_path}/my-cluster/config/template.json
 
 	# dump lambda code
-	for j in $(seq 1 $1);
-	do
-	        ssh root@${machine} "mkdir ${openlambda_path}/my-cluster/registry/lambda-${j}"
-	        scp ${openlambda_path}/benchmark/lambda/* root@${machine}:${openlambda_path}/my-cluster/registry/lambda-${j}/.
-	done
+	ssh root@${machine} "cp ${openlambda_path}/benchmark/handlers/handlers.tar ${openlambda_path}/my-cluster/registry/; cd ${openlambda_path}/my-cluster/registry/; tar xvf ${openlambda_path}/my-cluster/registry/handlers.tar; rm ${openlambda_path}/my-cluster/registry/handlers.tar"
 
 	#start workers
 	ssh root@${machine} "cd ${openlambda_path}; ./bin/admin workers --cluster=my-cluster --port=8081"

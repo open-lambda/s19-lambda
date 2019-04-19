@@ -60,7 +60,7 @@ type PerfMetrics struct{
 }
 
 
-var LAMBDA_BASE = "lambda-"
+var LAMBDA_BASE = "hdl"
 var BENCHMARK_PREPARE_SCRIPT = "/mnt/lambda_scheduler/s19-lambda/benchmark/benchmark_prepare.sh"
 var RUN_LAMBDA_BASE = "/runLambda/"
 var lambdaCounter = 1
@@ -118,6 +118,7 @@ func prepBenchmark(config BenchmarkConfig) ([]byte, error) {
 		totalLambdas += config.Cmds[i].NumLambdas
 	}
 	numLambdas := []string{strconv.Itoa(totalLambdas)}
+	fmt.Println(totalLambdas)
 	olPath := []string{config.OlPath}
 	registryMachines := config.RegistryMachines
 	params := append(scriptName, numLambdas...)
@@ -175,12 +176,13 @@ func addLambdaRequests(pool *WorkerPool, jobTemplate *Job) {
 			job := &Job{}
 			job.lambdaID = lambdaCounter + j
 			job.jobID = jobID
-			jobID++
-			job.lambda = LAMBDA_BASE + strconv.Itoa(job.lambdaID)
+			//jobID++
+			job.lambda = LAMBDA_BASE + strconv.Itoa(job.lambdaID) + "_0"
 			job.url = makeUrl(jobTemplate.url, job.lambda)
 			job.cmds = jobTemplate.cmds
 			pool.jobs <- *job
 		}
+		jobID++
 	}
 	lambdaCounter += pool.numLambdas
 
@@ -259,11 +261,18 @@ func aggregateMetrics() {
 		for _, v := range metrics {
 			mean += float64(v)
 		}
-		mean = mean / float64(len(metrics))
+		// remove first cold start time
+		mean -= float64(metrics[0])
+		mean = mean / float64(len(metrics)-1)
+
 		for _, v := range metrics {
 			std += math.Pow(float64(v)-mean, 2)
 		}
+		// remove first cold start time
+		std -= math.Pow(float64(metrics[0])-mean,2)
+
 		std = math.Sqrt(std/float64(len(metrics)-1))
+		fmt.Printf("%v has cold start time: %f ms, ", lambda, float64(metrics[0]))
 		fmt.Printf("%v has average run time: %f ms, with standard deviation: %f ms \n", lambda, mean, std)
 	}
 }
