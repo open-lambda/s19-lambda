@@ -60,3 +60,6 @@
 /my-cluster
 /benchmark/handlers/
 
+# Unknown
+output
+used_time

@@ -6,9 +6,11 @@ import (
 	"io/ioutil"
 	"gopkg.in/yaml.v2"
 	"encoding/json"
+	"sync"
 )
 
 const configName string = "config.yml"
+const defaultServerMaxConn int = -1
 
 func validation(condition bool, errorMessage string) string {
 	if condition {
@@ -68,7 +70,7 @@ func SetDefaultValues(proxy *Proxy) {
 	}
 
 	if proxy.Port == 0 {
-		proxy.Port = 8079
+		proxy.Port = 7079
 	}
 
 	if proxy.Scheme == "" {
@@ -76,11 +78,23 @@ func SetDefaultValues(proxy *Proxy) {
 	}
 
 	if proxy.Policy == "" {
-		proxy.Policy = "RoundRobin"
+		proxy.Policy = "LARD"
+	}
+
+	if proxy.LoadFormula == "" {
+		proxy.LoadFormula = "Connections"
 	}
 
 	if proxy.Servers == nil {
 		proxy.Servers = []Server{}
+	}
+
+	for i, _ := range proxy.Servers {
+		server := &proxy.Servers[i]
+		// when user DIT NOT SPECIFY max num of connections for server, use default value
+		if server.MaxConn == 0 { 
+			server.MaxConn = defaultServerMaxConn
+		} 
 	}
 
 	if proxy.LoadHigh == 0.0 {
@@ -88,11 +102,27 @@ func SetDefaultValues(proxy *Proxy) {
 	}
 
 	if proxy.LoadLow == 0.0 {
-		proxy.LoadLow = 0.3
+		proxy.LoadLow = 0.2
 	}
 
-	if proxy.RequestServerMap == nil{
+	if proxy.RequestServerMap == nil {
 		proxy.RequestServerMap = make(map[string]*Server)
+	}
+
+	if proxy.MaxConn == 0 {
+		if len(proxy.Servers) == 0 {
+			proxy.MaxConn = -1
+		} else {
+			for _, server := range proxy.Servers {
+				// when user specify no size limit for any worker queue, 
+				// server queue also will not have size limit
+				if server.MaxConn == -1 {
+					proxy.MaxConn = -1
+					break
+				}
+				proxy.MaxConn += server.MaxConn
+			}	
+		}
 	}
 }
 
@@ -115,6 +145,14 @@ func ReadConfig(config_file string) (*Proxy, error) {
 	}
 
 	SetDefaultValues(proxy)
+
+	lock := &sync.Mutex{}
+	proxy.ConnCond = sync.NewCond(lock)
+
+	for i, _ := range proxy.Servers {
+		server := &proxy.Servers[i]
+		server.ConnLock = &sync.Mutex{}
+	}
 
 	err = validateFields(proxy)
 	if err != nil {
