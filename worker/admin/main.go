@@ -1036,7 +1036,7 @@ OPTIONS:
 		cli.Command{
 			Name:        "registry",
 			Usage:       "Start the code registry.",
-			UsageText:   "admin registry [-p|-port=PORT] [--access-key=KEY] [--secret-key=KEY]",
+			UsageText:   "admin registry -cluster=CLUSTER [-p|-port=PORT] [--access-key=KEY] [--secret-key=KEY]",
 			Description: "Start the code reigstry.",
 			Flags: []cli.Flag{
 				clusterFlag,
@@ -1059,8 +1059,8 @@ OPTIONS:
 		cli.Command{
 			Name:        "upload",
 			Usage:       "Upload handler code to the registry",
-			UsageText:   "admin upload --cluster=NAME --handler=NAME --file=PATH [--access-key=KEY] [--secret-key=KEY]",
-			Description: "Upload a file to registry. The file must be a tarball.",
+			UsageText:   "admin upload --cluster=NAME --handler=NAME --file=PATH --address=REGISTRY_HOSTNAME:PORT [--access-key=KEY] [--secret-key=KEY]",
+			Description: "Upload a file to registry at hostname (or raw ip address) REGISTRY_HOSTNAME listening on PORT. The file must be a tarball.",
 			Flags: []cli.Flag{
 				clusterFlag,
 				cli.StringFlag{
