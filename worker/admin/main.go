@@ -808,11 +808,12 @@ func registry(ctx *cli.Context) error {
 		return err
 	}
 
+	fmt.Printf("Creating minio instance on localhost:%d", port)
+
 	regClient, err := minio.New(fmt.Sprintf("localhost:%d", port), access_key, secret_key, false)
 	if err != nil {
 		return err
 	}
-
 	start := time.Now()
 	var bucketErr error
 	for {
@@ -820,19 +821,23 @@ func registry(ctx *cli.Context) error {
 			return fmt.Errorf("failed to connect to bucket after 10s :: %v", bucketErr)
 		}
 
-		if exists, err := regClient.BucketExists(config.REGISTRY_BUCKET); err != nil {
+		if exists, err := regClient.BucketExists(config.REGISTRY_BUCKET); err != nil && exists {
+			fmt.Printf("%s failed permissions test.\n", config.REGISTRY_BUCKET)
 			bucketErr = err
 			continue
 		} else if !exists {
-			if err := regClient.MakeBucket(config.REGISTRY_BUCKET, "us-east-1"); err != nil {
+			fmt.Printf("Creating bucket...\n")
+			if err := regClient.MakeBucket("handlers", "us-east-1"); err != nil {
 				bucketErr = err
-				continue
+				fmt.Printf("There was an error making the bucket. Existential check failed. Error: %s\n", bucketErr)
+			continue
 			}
 		} else {
 			break
 		}
 	}
 
+	fmt.Printf("Checkpoint\n");
 	c, err := config.ParseConfig(templatePath(cluster))
 	if err != nil {
 		return err
@@ -844,6 +849,10 @@ func registry(ctx *cli.Context) error {
 		return err
 	}
 
+	fmt.Printf("Checkpoint 2\n");
+	for {
+		// spin
+	}
 	return nil
 }
 
@@ -858,6 +867,15 @@ func upload(ctx *cli.Context) error {
 	regClient, err := minio.New(address, access_key, secret_key, false)
 	if err != nil {
 		return err
+	}
+
+	if exists, err := regClient.BucketExists(config.REGISTRY_BUCKET); err != nil && exists {
+		fmt.Printf("%s failed permissions test.\n", config.REGISTRY_BUCKET)
+	} else if !exists {
+		fmt.Printf("Creating bucket...\n")
+		if err := regClient.MakeBucket(config.REGISTRY_BUCKET, "us-east-1"); err != nil {
+			fmt.Printf("There was an error making the bucket. Existential check failed. Error: %s\n", err)
+		}
 	}
 
 	opts := minio.PutObjectOptions{ContentType: "application/gzip", ContentEncoding: "binary"}
