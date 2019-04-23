@@ -757,7 +757,6 @@ func registry(ctx *cli.Context) error {
 	port := ctx.Int("port")
 	image := "minio/minio"
 
-	fmt.Printf(access_key)
 	if len(access_key) < 3 {
 		return fmt.Errorf("Error: Access key length must be at least 3 characters")
 	}
