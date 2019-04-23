@@ -757,6 +757,15 @@ func registry(ctx *cli.Context) error {
 	port := ctx.Int("port")
 	image := "minio/minio"
 
+	fmt.Printf(access_key)
+	if len(access_key) < 3 {
+		return fmt.Errorf("Error: Access key length must be at least 3 characters")
+	}
+
+	if len(secret_key) < 8 {
+		return fmt.Errorf("Error: Secret key length must be at least 8 characters")
+	}
+
 	_, err := client.InspectImage(image)
 	if err == docker.ErrNoSuchImage {
 		fmt.Printf("Pulling Minio image...\n")
@@ -775,7 +784,7 @@ func registry(ctx *cli.Context) error {
 	}
 
 	ports := map[docker.Port][]docker.PortBinding{"9000/tcp": []docker.PortBinding{docker.PortBinding{HostIP: "0.0.0.0", HostPort: fmt.Sprintf("%d", port)}}}
-	cmd := []string{"server", "/data"}
+	cmd := []string{"server", cluster}
 	volumes := []string{"/mnt/data:/data", "/mnt/config:/root/.minio"}
 	labels := map[string]string{
 		dutil.DOCKER_LABEL_CLUSTER: cluster,
@@ -808,7 +817,8 @@ func registry(ctx *cli.Context) error {
 		return err
 	}
 
-	fmt.Printf("Creating minio instance on localhost:%d", port)
+	fmt.Printf("Creating minio server instance on localhost:%d", port)
+
 
 	regClient, err := minio.New(fmt.Sprintf("localhost:%d", port), access_key, secret_key, false)
 	if err != nil {
@@ -822,14 +832,11 @@ func registry(ctx *cli.Context) error {
 		}
 
 		if exists, err := regClient.BucketExists(config.REGISTRY_BUCKET); err != nil && exists {
-			fmt.Printf("%s failed permissions test.\n", config.REGISTRY_BUCKET)
 			bucketErr = err
 			continue
 		} else if !exists {
-			fmt.Printf("Creating bucket...\n")
-			if err := regClient.MakeBucket("handlers", "us-east-1"); err != nil {
+			if err := regClient.MakeBucket(config.REGISTRY_BUCKET, "us-east-1"); err != nil {
 				bucketErr = err
-				fmt.Printf("There was an error making the bucket. Existential check failed. Error: %s\n", bucketErr)
 			continue
 			}
 		} else {
@@ -837,7 +844,6 @@ func registry(ctx *cli.Context) error {
 		}
 	}
 
-	fmt.Printf("Checkpoint\n");
 	c, err := config.ParseConfig(templatePath(cluster))
 	if err != nil {
 		return err
@@ -849,10 +855,6 @@ func registry(ctx *cli.Context) error {
 		return err
 	}
 
-	fmt.Printf("Checkpoint 2\n");
-	for {
-		// spin
-	}
 	return nil
 }
 
@@ -870,11 +872,11 @@ func upload(ctx *cli.Context) error {
 	}
 
 	if exists, err := regClient.BucketExists(config.REGISTRY_BUCKET); err != nil && exists {
-		fmt.Printf("%s failed permissions test.\n", config.REGISTRY_BUCKET)
+		return fmt.Errorf("Error: Bucket exists but %s failed permissions test.\n", config.REGISTRY_BUCKET)
 	} else if !exists {
-		fmt.Printf("Creating bucket...\n")
+		fmt.Printf("Info: registry bucket currently does not exist. Creating bucket...\n")
 		if err := regClient.MakeBucket(config.REGISTRY_BUCKET, "us-east-1"); err != nil {
-			fmt.Printf("There was an error making the bucket. Existential check failed. Error: %s\n", err)
+			return fmt.Errorf("Error: Making registry bucket failed. Existential check failed. Error: %s\n", err)
 		}
 	}
 
@@ -1054,8 +1056,8 @@ OPTIONS:
 		cli.Command{
 			Name:        "registry",
 			Usage:       "Start the code registry.",
-			UsageText:   "admin registry -cluster=CLUSTER [-p|-port=PORT] [--access-key=KEY] [--secret-key=KEY]",
-			Description: "Start the code reigstry.",
+			UsageText:   "admin registry -cluster=CLUSTER --access-key=KEY --secret-key=KEY [-p|--port=PORT]",
+			Description: "Start the code registry. Keys follow minio restrictions- that is, access keys must be at least 3 characters, and secrets 8 characters",
 			Flags: []cli.Flag{
 				clusterFlag,
 				cli.StringFlag{
