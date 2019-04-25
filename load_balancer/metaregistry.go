@@ -7,6 +7,8 @@ import (
 		"strings"
 )
 
+const ERR_MSG= "ERROR: %s"
+
 /* metaRegistry
  * A key-value store dependency graph
  * useful for retrieving names of dependency packages
@@ -71,8 +73,14 @@ func (mr *MetaRegistry) push(handler_name string, pckg_names []string) int {
 	h := mr.dep_map[handler_name]
 
 	if h == nil {
+		log.Printf("INFO: Discovered new handler... create new handler node for %s with H-ID: %d", handler_name, mr.cur_hid)
 		mr.dep_map[handler_name] = append(mr.dep_map[handler_name], mr.cur_hid)
+		mr.handler_names = append(mr.handler_names, handler_name)
 		mr.cur_hid++
+	} else {
+		log.Printf("ERROR: Handler %s already registered.", handler_name)
+		mr.tickHID_lock.Unlock()
+		return -1
 	}
 	mr.tickHID_lock.Unlock()
 
@@ -80,7 +88,9 @@ func (mr *MetaRegistry) push(handler_name string, pckg_names []string) int {
 		mr.tickDID_lock.Lock()
 		d := mr.pckg_lut[pckg_names[i]]
 		if d == nil {
+			log.Printf("INFO: Discovered new package... creating new dependency node for %s with D-ID: %d", pckg_names[i], mr.cur_did)
 			mr.pckg_lut[pckg_names[i]] = append(mr.pckg_lut[pckg_names[i]], mr.cur_did)
+			mr.dep_names = append(mr.dep_names, pckg_names[i])
 			mr.cur_did++
 		}
 		mr.tickDID_lock.Unlock()
@@ -93,7 +103,6 @@ func (mr *MetaRegistry) push(handler_name string, pckg_names []string) int {
 		mr.dep_map[handler_name] = append(mr.dep_map[handler_name], mr.pckg_lut[pckg_names[i]][0])
 		mr.pckg_lut[pckg_names[i]] = append(mr.pckg_lut[pckg_names[i]], mr.dep_map[handler_name][0])
 	}
-
 	// success
 	return 0
 }
@@ -115,9 +124,15 @@ func (mr *MetaRegistry) push_cluster_handler(handler_name string, clust_name str
 	}
 
 	full_in := string(istre)
-	package_list := strings.Split(full_in, "\n")
-	mr.push(handler_name, package_list)
-	return 0
+	raw_package_list := strings.Split(full_in, "\n")
+
+	// There is always one "EOF" tag along, ignore it
+	if(len(raw_package_list) <= 1) {
+		return -1
+	}
+
+	package_list := raw_package_list[0:len(raw_package_list) - 1]
+	return mr.push(handler_name, package_list)
 }
 
 /* Given a handler_name
@@ -125,7 +140,9 @@ func (mr *MetaRegistry) push_cluster_handler(handler_name string, clust_name str
  * If the item is not found, or an error occurs, returns nil
  */
 func (mr *MetaRegistry) peek_handler_deps(handler_name string) []string{
-	inds := mr.pckg_lut[handler_name]
+	inds := mr.dep_map[handler_name]
+
+
 	if inds == nil {
 		return nil
 	}
@@ -133,14 +150,14 @@ func (mr *MetaRegistry) peek_handler_deps(handler_name string) []string{
 	var sl []string = nil
 
 	for i := 1; i < len(inds); i++ {
-		sl = append(sl, mr.dep_names[i])
+		sl = append(sl, mr.dep_names[inds[i]])
 	}
 
 	return sl
 }
 
 func (mr *MetaRegistry) peek_deps_used_by(dep_name string) []string {
-	inds := mr.dep_map[dep_name]
+	inds := mr.pckg_lut[dep_name]
 
 	if inds == nil {
 		return nil
@@ -149,7 +166,7 @@ func (mr *MetaRegistry) peek_deps_used_by(dep_name string) []string {
 	var hl []string = nil
 
 	for i := 1; i < len(inds); i++ {
-		hl = append(hl, mr.handler_names[i])
+		hl = append(hl, mr.handler_names[inds[i]])
 	}
 
 	return hl
