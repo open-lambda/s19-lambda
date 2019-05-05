@@ -254,6 +254,8 @@ func singleLambdaRequest(job Job) int64 {
 func aggregateMetrics() {
 	//fmt.Println(Metrics)
 	metricsMap := genMetricsMap()
+	var coldStartMean = 0.0
+	var coldStartStd = 0.0
 	for lambda, metrics := range metricsMap {
 		var mean = 0.0
 		var std = 0.0
@@ -265,6 +267,8 @@ func aggregateMetrics() {
 		mean -= float64(metrics[0])
 		mean = mean / float64(len(metrics)-1)
 
+		coldStartMean += float64(metrics[0])
+
 		for _, v := range metrics {
 			std += math.Pow(float64(v)-mean, 2)
 		}
@@ -275,6 +279,14 @@ func aggregateMetrics() {
 		fmt.Printf("%v has cold start time: %f ms, ", lambda, float64(metrics[0]))
 		fmt.Printf("%v has average run time: %f ms, with standard deviation: %f ms \n", lambda, mean, std)
 	}
+
+	coldStartMean /= float64(len(metricsMap))
+	for _, metrics := range metricsMap {
+		coldStartStd += math.Pow(float64(metrics[0])-coldStartMean, 2)
+	}
+	coldStartStd = math.Sqrt(coldStartStd/float64(len(metricsMap)))
+	fmt.Printf("Average cold start time: %f ms\n", coldStartMean)
+	fmt.Printf("Standard Deviation of cold start time: %f\n", coldStartStd)
 }
 
 func genMetricsMap() map[string]map[int]int64 {
