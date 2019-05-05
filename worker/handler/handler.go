@@ -40,13 +40,11 @@ type HandlerManagerSet struct {
 	hhits      *int64
 	ihits      *int64
 	misses     *int64
-	// MemTotal   *int
-	// MemFree    *int
-	// MemPercent *float64
-	// CPUPercent *float64
-	LenQueue   *int64
-	queueCond  *sync.Cond
-	evictCond  *sync.Cond
+	sbHardLimit         int
+	numSbCreating       int
+	sbCreatingLock      sync.Mutex
+	sbCreatingQueue     chan *Handler
+	avgHandlerMemUsage  int
 }
 
 type HandlerManager struct {
@@ -54,7 +52,6 @@ type HandlerManager struct {
 	mutex       sync.Mutex
 	hms         *HandlerManagerSet
 	handlers    *list.List
-	lru         *HandlerLRU
 	hElements   map[*Handler]*list.Element
 	workingDir  string
 	maxHandlers int
@@ -78,7 +75,9 @@ type Handler struct {
 	hostDir string
 	runners int
 	usage   int
+	sbCreatingChan  chan bool
 }
+
 
 // NewHandlerSet creates an empty HandlerSet
 func NewHandlerManagerSet(opts *config.Config) (hms *HandlerManagerSet, err error) {
@@ -115,54 +114,96 @@ func NewHandlerManagerSet(opts *config.Config) (hms *HandlerManagerSet, err erro
 	var hhits int64 = 0
 	var ihits int64 = 0
 	var misses int64 = 0
-	var lenQueue int64 = 0
-	// var memPercent float64 = 0.0
-	// var cpuPercent float64 = 0.0
-	// var memTotal int = 0  
-	// var memFree  int = 0
 	hms = &HandlerManagerSet{
-		hmMap:      make(map[string]*HandlerManager),
-		regMgr:     rm,
-		pipMgr:     pm,
-		sbFactory:  sf,
-		cacheMgr:   cm,
-		config:     opts,
-		workerDir:  opts.Worker_dir,
-		maxRunners: opts.Max_runners,
-		hhits:      &hhits,
-		ihits:      &ihits,
-		misses:     &misses,
-		// MemTotal:    &memTotal,
-		// MemFree:     &memFree,
-		// MemPercent: &memPercent,
-		// CPUPercent: &cpuPercent,
-		LenQueue:   &lenQueue,
+		hmMap:              make(map[string]*HandlerManager),
+		regMgr:             rm,
+		pipMgr:             pm,
+		sbFactory:          sf,
+		cacheMgr:           cm,
+		config:             opts,
+		workerDir:          opts.Worker_dir,
+		maxRunners:         opts.Max_runners,
+		hhits:              &hhits,
+		ihits:              &ihits,
+		misses:             &misses,
+		sbHardLimit:        opts.Sandbox_create_hard_limit * 1024,
+		numSbCreating:      0,
 	}
-	m := &sync.Mutex{}
-	hms.queueCond = sync.NewCond(m)
+
+	hms.sbCreatingQueue = make(chan *Handler, opts.Sandbox_create_queue_size)
+
 	hms.lru = NewHandlerLRU(hms, opts.Handler_cache_size) //kb
-	log.Print("after NewHandlerLRU\n")
+
+	go hms.updateAvgHandlerMemUsage(opts.Handler_usage_update_interval)
+
+	go hms.scheduleSbCreatingReqs()
 
 	return hms, nil
 }
 
+var memUsage int = 0
+var memLastUpdateTime time.Time = time.Now()
 
-var MemUsage float64 = 0.0
-var MemLastUpdateTime time.Time = time.Now()
-
-func (hms *HandlerManagerSet) GetMemUsage() float64 {
-	if (time.Since(MemLastUpdateTime)) > time.Second {
+func getMemUsage() int {
+	if (time.Since(memLastUpdateTime)) > time.Second {
 		v, _ := mem.VirtualMemory()
 		total, free := int(v.Total), int(v.Free)
-		MemUsage = 1.0 - float64(free) / float64(total)
-		MemLastUpdateTime = time.Now()
+		memUsage = total - free
+		memLastUpdateTime = time.Now()
 	}
-	return MemUsage
+	return memUsage
+}
+
+func (hms *HandlerManagerSet) updateAvgHandlerMemUsage(updateInterval int) {
+	for {
+		numHandler := 0
+		totalMemUsage := 0
+		hms.mutex.Lock()
+		startTime := time.Now()
+		for _, hm := range hms.hmMap {
+			for e := hm.handlers.Front(); e != nil; e = e.Next() {
+				h := e.Value.(*Handler)
+				if h.sandbox == nil {
+					continue
+				} else if sbState, err := h.sandbox.State(); err != nil {
+					continue
+				} else if sbState == state.Stopped {
+					continue
+				}
+				numHandler++
+				totalMemUsage += handlerUsage(h)
+			}
+		}
+		usedTime := time.Now().Sub(startTime)
+		if (usedTime > 10 * time.Millisecond) {
+			log.Printf("WARNING: Updating average handler memory usage took more than 10ms (actual time: %v)", usedTime)
+		}
+		hms.mutex.Unlock()
+		if numHandler != 0 {
+			hms.avgHandlerMemUsage = totalMemUsage / numHandler
+		}
+		time.Sleep(time.Duration(updateInterval) * time.Second)
+	}
+}
+
+func (hms *HandlerManagerSet) scheduleSbCreatingReqs() {
+	for {
+		hms.sbCreatingLock.Lock()
+		if hms.sbHardLimit != 0 && (getMemUsage() + (hms.numSbCreating + 1) * hms.avgHandlerMemUsage <= hms.sbHardLimit) {
+			select {
+			case h := <-hms.sbCreatingQueue:
+				h.sbCreatingChan <- true
+			default:
+				// No handler waiting in queue, do nothing
+			}
+		}
+		hms.sbCreatingLock.Unlock()
+		time.Sleep(100 * time.Millisecond) // poll every 100ms
+	}
 }
 
 // Get always returns a Handler, creating one if necessarily.
 func (hms *HandlerManagerSet) Get(name string) (h *Handler, err error) {
-	log.Print("In Get()")
 	hms.mutex.Lock()
 
 	hm := hms.hmMap[name]
@@ -180,8 +221,6 @@ func (hms *HandlerManagerSet) Get(name string) (h *Handler, err error) {
 		}
 
 		hm = hms.hmMap[name]
-		hm.lru = NewHmHandlerLRU(hm)
-		log.Print("after NewHmHandlerLRU\n")
 	}
 
 	// find or create handler
@@ -192,6 +231,8 @@ func (hms *HandlerManagerSet) Get(name string) (h *Handler, err error) {
 			hm:      hm,
 			runners: 1,
 		}
+
+		// we are up so we can add ourselves for reuse
 		if hms.maxRunners == 0 || h.runners < hms.maxRunners {
 			hm.hElements[h] = hm.handlers.PushFront(h)
 			hm.maxHandlers = max(hm.maxHandlers, hm.handlers.Len())
@@ -204,7 +245,6 @@ func (hms *HandlerManagerSet) Get(name string) (h *Handler, err error) {
 		h.mutex.Lock()
 		if h.runners == 0 {
 			hms.lru.Remove(h)
-			hm.lru.Remove(h)
 		}
 
 		h.runners += 1
@@ -321,12 +361,19 @@ func (h *Handler) RunStart() (ch *sb.Channel, err error) {
 
 	// create sandbox if needed
 	if h.sandbox == nil {
-		hms.queueCond.L.Lock()
-		for *hms.LenQueue >= 1 || hms.GetMemUsage() >= 70 {
-			hms.queueCond.Wait()
+		// if estimated mem usage exceeds the hard limit, the handler would queue itself
+        hms.sbCreatingLock.Lock()
+        for hms.sbHardLimit != 0 && (getMemUsage() + (hms.numSbCreating + 1) * hms.avgHandlerMemUsage > hms.sbHardLimit) {
+            hms.sbCreatingLock.Unlock()
+			if h.sbCreatingChan == nil {
+				h.sbCreatingChan = make(chan bool, 1)
+			}
+			hms.sbCreatingQueue <- h
+			<-h.sbCreatingChan // waiting for wake-up signal
+            hms.sbCreatingLock.Lock()
 		}
-		*hms.LenQueue += 1
-		hms.queueCond.L.Unlock()
+		hms.numSbCreating += 1
+		hms.sbCreatingLock.Unlock()
 
 		hit := false
 
@@ -373,10 +420,12 @@ func (h *Handler) RunStart() (ch *sb.Channel, err error) {
 			}
 		}
 
-		hms.queueCond.L.Lock()
-		*hms.LenQueue -= 1
-		hms.queueCond.L.Unlock()
-		hms.queueCond.Broadcast()
+		// a new sandbox has been created, attempts to wake up blocked 
+		// sandbox creation requests, if any.
+		hms.sbCreatingLock.Lock()
+		hms.numSbCreating -= 1
+		hms.sbCreatingLock.Unlock()
+
 		// use StdoutPipe of olcontainer to sync with lambda server
 		ready := make(chan bool, 1)
 		defer close(ready)
@@ -414,7 +463,6 @@ func (h *Handler) RunStart() (ch *sb.Channel, err error) {
 			return nil, fmt.Errorf("handler server failed to initialize after 20s")
 		}
 
-
 	} else if sbState, _ := h.sandbox.State(); sbState == state.Paused {
 		// unpause if paused
 		atomic.AddInt64(hms.hhits, 1)
@@ -449,32 +497,28 @@ func (h *Handler) RunFinish() {
 			log.Printf("Could not pause %v: %v!  Error: %v\n", h.name, h.id, err)
 		}
 
-		// if handlerUsage(h) > hms.lru.soft_limit {
-		// 	h.mutex.Unlock()
+		if handlerUsage(h) > hms.lru.soft_limit {
+			h.mutex.Unlock()
 
-		// 	// we were potentially the last runner
-		// 	// try to remove us from the handler manager
-		// 	if err := hm.TryRemoveHandler(h); err == nil {
-		// 		// we were the last one so... bye
-		// 		go h.nuke()
-		// 	}
-		// 	return
-		// }
+			// we were potentially the last runner
+			// try to remove us from the handler manager
+			if err := hm.TryRemoveHandler(h); err == nil {
+				// we were the last one so... bye
+				go h.nuke()
+			}
+			return
+		}
 
+		hm.AddHandler(h)
 		hms.lru.Add(h)
-		hm.lru.Add(h)
-	} 
-
-	hm.AddHandler(h)
-	h.mutex.Unlock()
-
-	if hms.GetMemUsage() <= 70 {
-		hms.queueCond.Broadcast()
+	} else {
+		hm.AddHandler(h)
 	}
+
+	h.mutex.Unlock()
 }
 
 func (h *Handler) nuke() {
-	hms := h.hm.hms
 	if err := h.sandbox.Unpause(); err != nil {
 		log.Printf("failed to unpause sandbox :: %v", err.Error())
 	}
@@ -483,9 +527,6 @@ func (h *Handler) nuke() {
 	}
 	if err := h.sandbox.Remove(); err != nil {
 		log.Printf("failed to remove sandbox :: %v", err.Error())
-	}
-	if hms.GetMemUsage() <= 70{
-		hms.queueCond.Broadcast()
 	}
 }
 

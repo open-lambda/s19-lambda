@@ -757,6 +757,14 @@ func registry(ctx *cli.Context) error {
 	port := ctx.Int("port")
 	image := "minio/minio"
 
+	if len(access_key) < 3 {
+		return fmt.Errorf("Error: Access key length must be at least 3 characters")
+	}
+
+	if len(secret_key) < 8 {
+		return fmt.Errorf("Error: Secret key length must be at least 8 characters")
+	}
+
 	_, err := client.InspectImage(image)
 	if err == docker.ErrNoSuchImage {
 		fmt.Printf("Pulling Minio image...\n")
@@ -775,7 +783,7 @@ func registry(ctx *cli.Context) error {
 	}
 
 	ports := map[docker.Port][]docker.PortBinding{"9000/tcp": []docker.PortBinding{docker.PortBinding{HostIP: "0.0.0.0", HostPort: fmt.Sprintf("%d", port)}}}
-	cmd := []string{"server", "/data"}
+	cmd := []string{"server", cluster}
 	volumes := []string{"/mnt/data:/data", "/mnt/config:/root/.minio"}
 	labels := map[string]string{
 		dutil.DOCKER_LABEL_CLUSTER: cluster,
@@ -808,11 +816,13 @@ func registry(ctx *cli.Context) error {
 		return err
 	}
 
+	fmt.Printf("Creating minio server instance on localhost:%d", port)
+
+
 	regClient, err := minio.New(fmt.Sprintf("localhost:%d", port), access_key, secret_key, false)
 	if err != nil {
 		return err
 	}
-
 	start := time.Now()
 	var bucketErr error
 	for {
@@ -820,13 +830,13 @@ func registry(ctx *cli.Context) error {
 			return fmt.Errorf("failed to connect to bucket after 10s :: %v", bucketErr)
 		}
 
-		if exists, err := regClient.BucketExists(config.REGISTRY_BUCKET); err != nil {
+		if exists, err := regClient.BucketExists(config.REGISTRY_BUCKET); err != nil && exists {
 			bucketErr = err
 			continue
 		} else if !exists {
 			if err := regClient.MakeBucket(config.REGISTRY_BUCKET, "us-east-1"); err != nil {
 				bucketErr = err
-				continue
+			continue
 			}
 		} else {
 			break
@@ -858,6 +868,15 @@ func upload(ctx *cli.Context) error {
 	regClient, err := minio.New(address, access_key, secret_key, false)
 	if err != nil {
 		return err
+	}
+
+	if exists, err := regClient.BucketExists(config.REGISTRY_BUCKET); err != nil && exists {
+		return fmt.Errorf("Error: Bucket exists but %s failed permissions test.\n", config.REGISTRY_BUCKET)
+	} else if !exists {
+		fmt.Printf("Info: registry bucket currently does not exist. Creating bucket...\n")
+		if err := regClient.MakeBucket(config.REGISTRY_BUCKET, "us-east-1"); err != nil {
+			return fmt.Errorf("Error: Making registry bucket failed. Existential check failed. Error: %s\n", err)
+		}
 	}
 
 	opts := minio.PutObjectOptions{ContentType: "application/gzip", ContentEncoding: "binary"}
@@ -1036,8 +1055,8 @@ OPTIONS:
 		cli.Command{
 			Name:        "registry",
 			Usage:       "Start the code registry.",
-			UsageText:   "admin registry [-p|-port=PORT] [--access-key=KEY] [--secret-key=KEY]",
-			Description: "Start the code reigstry.",
+			UsageText:   "admin registry -cluster=CLUSTER --access-key=KEY --secret-key=KEY [-p|--port=PORT]",
+			Description: "Start the code registry. Keys follow minio restrictions- that is, access keys must be at least 3 characters, and secrets 8 characters",
 			Flags: []cli.Flag{
 				clusterFlag,
 				cli.StringFlag{
@@ -1059,8 +1078,8 @@ OPTIONS:
 		cli.Command{
 			Name:        "upload",
 			Usage:       "Upload handler code to the registry",
-			UsageText:   "admin upload --cluster=NAME --handler=NAME --file=PATH [--access-key=KEY] [--secret-key=KEY]",
-			Description: "Upload a file to registry. The file must be a tarball.",
+			UsageText:   "admin upload --cluster=NAME --handler=NAME --file=PATH --address=REGISTRY_HOSTNAME:PORT [--access-key=KEY] [--secret-key=KEY]",
+			Description: "Upload a file to registry at hostname (or raw ip address) REGISTRY_HOSTNAME listening on PORT. The file must be a tarball.",
 			Flags: []cli.Flag{
 				clusterFlag,
 				cli.StringFlag{

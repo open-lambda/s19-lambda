@@ -39,7 +39,7 @@ func NewHandlerLRU(hms *HandlerManagerSet, soft_limit int) *HandlerLRU {
 	}
 	lru.soft_cond = sync.NewCond(&lru.mutex)
 	// TODO(tyler): start a configurable number of tasks
-	// go lru.Evictor()
+	go lru.Evictor()
 	log.Print("In NewHandlerLRU\n")	
 	return lru
 }
@@ -50,7 +50,7 @@ func NewHmHandlerLRU(hm *HandlerManager) *HandlerLRU {
 		hm:         hm,
 		hqueue:     list.New(),
 	}
-	go lru.EvictorByIdleTime()
+	// go lru.EvictorByIdleTime()
 	log.Print("In NewHmandlerLRU\n")	
 	return lru
 }
