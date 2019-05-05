@@ -7,6 +7,11 @@ import (
 	"gopkg.in/yaml.v2"
 	"encoding/json"
 	"sync"
+	"os"
+	"log"
+
+	"github.com/open-lambda/open-lambda/worker/registry"
+	"github.com/open-lambda/open-lambda/worker/config"
 )
 
 const configName string = "config.yml"
@@ -124,6 +129,29 @@ func SetDefaultValues(proxy *Proxy) {
 			}	
 		}
 	}
+
+	// use python package import aware scheduling
+	if proxy.ForkServerMetaCacheSize != 0 {
+		for i := 0; i < len(proxy.Servers); i++ {
+			proxy.Servers[i].ForkServerMetaList = make([]*ForkServerMeta, 0, proxy.ForkServerMetaCacheSize)
+			baseFSM := &ForkServerMeta{
+				Imports: make(map[string]bool),
+				Hits: 0.0,
+			}
+			proxy.Servers[i].ForkServerMetaList = append(proxy.Servers[i].ForkServerMetaList, baseFSM)
+			proxy.Servers[i].LoadMultiplier = 1.0 / float64(len(proxy.Servers))
+		}
+
+		conf, err := config.ParseConfig(os.Getenv("WORKER_CONFIG"))
+		if err != nil {
+			log.Fatal(err)
+		}
+		rm, _ := registry.InitRegistryManager(conf)
+		//if err != nil {
+		//	return nil, err
+		//}
+		proxy.regMgr = rm
+	}	
 }
 
 func ReadConfig(config_file string) (*Proxy, error) {
@@ -145,6 +173,7 @@ func ReadConfig(config_file string) (*Proxy, error) {
 	}
 
 	SetDefaultValues(proxy)
+	fmt.Print(proxy)
 
 	lock := &sync.Mutex{}
 	proxy.ConnCond = sync.NewCond(lock)
