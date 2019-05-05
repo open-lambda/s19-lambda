@@ -11,8 +11,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
-
+	"log"
 	workerServer "github.com/open-lambda/s19-lambda/worker/server"
+	"github.com/open-lambda/open-lambda/worker/registry"
 )
 
 type Proxy struct {
@@ -24,11 +25,14 @@ type Proxy struct {
 	Servers []Server
 	RequestServerMap map[string]*Server
 	MapLock sync.RWMutex `json:"-"`
+	LoadLock sync.Mutex `json:"-"` 
 	LoadHigh float64
 	LoadLow float64
+	ForkServerMetaCacheSize int
 	Connections int `json:"-"`
 	MaxConn int // max num of connections for the whole system
 	ConnCond *sync.Cond `json:"-"` // condional variable for connections
+	regMgr	registry.RegistryManager
 }
 
 func (proxy *Proxy) origin() string {
@@ -67,6 +71,7 @@ func (proxy *Proxy)chooseServer(ignoreList []string) *Server {
 
 var LeastLoadMutex = &sync.Mutex{}
 var LeastLoadIdx int = 0
+var LoadMutex = &sync.Mutex{}
 
 var RRServerIdx int = 0
 
@@ -107,7 +112,7 @@ func (proxy *Proxy)lardChooseServer(ignoreList []string, r *http.Request) *Serve
 	if (ok) {
 		// impose a limit on targetServer's queue size
 		if(targetServer.GetLoad(proxy.LoadFormula) >= proxy.LoadHigh && proxy.getLeastLoad(false).GetLoad(proxy.LoadFormula) < proxy.LoadLow || targetServer.GetLoad(proxy.LoadFormula) >= 2 * proxy.LoadHigh || targetServer.MaxConn != -1 && targetServer.Connections >= targetServer.MaxConn){
-			targetServer = proxy.getLeastLoad(true)
+			targetServer = proxy.getServerByRequirement(true, path)
 		}
 		shouldIgnore := false
 		for _, ignoreServerName := range ignoreList {
@@ -120,7 +125,7 @@ func (proxy *Proxy)lardChooseServer(ignoreList []string, r *http.Request) *Serve
 			targetServer = nil
 		}
 	} else {
-		targetServer = proxy.getLeastLoad(true)
+		targetServer = proxy.getServerByRequirement(true, path)
 	}
 	if targetServer != nil {
 		targetServer.ConnLock.Lock()
@@ -157,6 +162,54 @@ func (proxy *Proxy) getLeastLoad(moveIndex bool) *Server{
 		}
 	}
 	return targetServer
+}
+
+func (proxy *Proxy) getServerByLoadAndPackages(moveIndex bool, name string) *Server {
+	var targetServer *Server = nil
+	var maxScore = 0.0
+	var startIdx = 0
+	_, imports, _, err := proxy.regMgr.Pull(name)
+	if err != nil {
+		log.Fatal(err)
+		//LogInfo(err)
+		//return nil, err
+	}
+	if moveIndex {
+		LeastLoadMutex.Lock()
+		startIdx = LeastLoadIdx
+		LeastLoadIdx = (LeastLoadIdx + 1) % len(proxy.Servers)
+		LeastLoadMutex.Unlock()
+	}
+	for i := 0; i < len(proxy.Servers); i++ {
+
+		server := &proxy.Servers[(startIdx+i)%len(proxy.Servers)]
+		// enforce a limit on worker's queue size
+		if server.MaxConn != -1 && server.Connections > server.MaxConn {
+			continue
+		}
+		var curLoad = server.GetLoad(proxy.LoadFormula)
+		numImportMatch := server.Match(imports)
+		var maxPackageMatch = float64(numImportMatch) / float64(len(imports))
+		var curScore = (1.0 / curLoad) * maxPackageMatch
+		log.Printf("curScore: %f, curLoad %f", curScore, curLoad)
+		if curScore >= maxScore {
+			maxScore = curScore
+			targetServer = server
+		}
+	}
+
+	return targetServer
+}
+
+func (proxy *Proxy) getServerByRequirement(moveIndex bool, name string) *Server {
+	//log.Printf("%s", name)
+	name = strings.Split(name, "/")[2]
+	LogInfo(name)
+	if proxy.ForkServerMetaCacheSize != 0 {
+		return proxy.getServerByLoadAndPackages(moveIndex, name)
+	} else {
+		return proxy.getLeastLoad(moveIndex)
+	}
 }
 
 func (proxy *Proxy)ReverseProxy(w http.ResponseWriter, r *http.Request, server *Server) (int, error){
@@ -203,8 +256,26 @@ func (proxy *Proxy)ReverseProxy(w http.ResponseWriter, r *http.Request, server *
 		proxy.MapLock.RLock()
 		targetServer, _ := proxy.RequestServerMap[path]
 		proxy.MapLock.RUnlock()
+	    	//proxy.LoadLock.Lock()
+		LoadMutex.Lock()
 		targetServer.CPUUsage = respStruct.CPUUsage
+		LoadMutex.Unlock()
+		//proxy.LoadLock.Unlock()
 		targetServer.MemUsage = 1.0 - float64(respStruct.FreeMem) / float64(respStruct.TotalMem)
+		if proxy.LoadFormula == "LoadMultiplier" {
+			//proxy.LoadLock.Lock()
+			LoadMutex.Lock()
+	    	sum := 0.0
+	    	for i := 0; i < len(proxy.Servers); i++ {
+	    		sum += proxy.Servers[i].CPUUsage
+	    	}
+	    	average := sum / float64(len(proxy.Servers))
+	    	for i := 0; i < len(proxy.Servers); i++ {
+	    		proxy.Servers[i].LoadMultiplier = proxy.Servers[i].LoadMultiplier + 0.1 * (average - proxy.Servers[i].CPUUsage)
+	    	}
+			LoadMutex.Unlock()
+			//proxy.LoadLock.Unlock()
+		}
 	}
 
 	LogInfo("Server load condition:")
