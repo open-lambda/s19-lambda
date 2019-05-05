@@ -38,7 +38,7 @@ for i in $( eval echo {1..$num_of_machines}); do
 	scp ${openlambda_path}/benchmark/template.json root@${machine}:${openlambda_path}/my-cluster/config/template.json
 
 	# dump lambda code
-	ssh root@${machine} "cp ${openlambda_path}/benchmark/handlers/handlers.tar ${openlambda_path}/my-cluster/registry/; cd ${openlambda_path}/my-cluster/registry/; tar xvf ${openlambda_path}/my-cluster/registry/handlers.tar; rm ${openlambda_path}/my-cluster/registry/handlers.tar"
+	ssh root@${machine} "cp ${openlambda_path}/benchmark/handlers/handlers.tar ${openlambda_path}/my-cluster/registry/; cd ${openlambda_path}/my-cluster/registry/; tar xf ${openlambda_path}/my-cluster/registry/handlers.tar; rm ${openlambda_path}/my-cluster/registry/handlers.tar"
 
 	#start workers
 	ssh root@${machine} "cd ${openlambda_path}; ./bin/admin workers --cluster=my-cluster --port=8081"
@@ -49,11 +49,22 @@ now=$(date +"%T")
 echo "Current time : $now"
 
 CUR_DIR=$(cd $(dirname $0); pwd)
+BENCHMARK_PARTH="$openlambda_path/benchmark"
+echo $BENCHMARK_PARTH
+
 cd $openlambda_path
 ./bin/admin kill --cluster=my-cluster
-rm -r my-cluster
+#rm -r my-cluster
 kill -9 $(lsof -t -i:8079)
+rm -rf my-cluster
 ./bin/admin new --cluster=my-cluster
-cp $CUR_DIR/load_balancer.json my-cluster/config/load_balancer.json
+cp $BENCHMARK_PARTH/lard_load_balancer.json my-cluster/config/load_balancer.json
+
+cp ${openlambda_path}/benchmark/handlers/handlers.tar ${openlambda_path}/my-cluster/registry/
+cd ${openlambda_path}/my-cluster/registry/ 
+tar xf ${openlambda_path}/my-cluster/registry/handlers.tar
+rm ${openlambda_path}/my-cluster/registry/handlers.tar
+
+cd ${openlambda_path}
 ./bin/admin load-balancer --cluster=my-cluster
 ./bin/admin status --cluster=my-cluster

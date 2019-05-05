@@ -10,8 +10,8 @@
       {
          "cmd": "{\"input\":\"hello\"}",
          "numThreads": 100,
-         "cmdPerLambda": 1000,
-         "numLambdas": 1
+         "cmdPerLambda": 1,
+         "numLambdas": 100
       }
    ]
 }

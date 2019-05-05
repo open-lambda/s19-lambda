@@ -9,7 +9,7 @@
 	"pip_mirror": "http://localhost:9199/simple/",
 	"Pkgs_dir": "/mnt/lambda_scheduler/s19-lambda/my-cluster/base/packages",
 	"max_runners": 0,
-	"handler_cache_size": 0,
+	"handler_cache_size": 1024000,
 	"import_cache_size": 0,
 	"worker_dir": "/mnt/lambda_scheduler/s19-lambda/my-cluster/workers/default",
 	"SOCK_base_path": "/mnt/lambda_scheduler/s19-lambda/my-cluster/base",

@@ -967,7 +967,7 @@ OPTIONS:
 				cli.IntFlag{
 					Name:  "port, p",
 					Usage: "Port range [`PORT`, `PORT`+n) will be used for workers",
-					Value: 7081,
+					Value: 8081,
 				},
 				cli.IntFlag{
 					Name:  "num-workers, n",
@@ -1045,9 +1045,10 @@ OPTIONS:
 			Description: "Start load balancing server for distributed OpenLambda as a standalone process",
 			Flags: []cli.Flag{
 				clusterFlag,
-				cli.StringFlag{
+				cli.IntFlag{
 					Name:  "port, p",
 					Usage: "Exposed port of the load balancer, all requests are first submitted to it",
+					Value: 8079,
 				},
 			},
 			Action: loadBalancer,
