@@ -79,6 +79,16 @@ func mem_allfree() (int, int) {
 	return int(v.Total), int(v.Free)
 }
 
+/* memusefree
+ * Returns two values
+ * First return value: total memory available 
+ * Second return value : free memory available
+ */
+func mem_allused() (int, int) {
+	v, _ := mem.VirtualMemory()
+	return int(v.Total), int(v.Used)
+}
+
 /* RID Http Handler
  * -
  * RID gives information about the machine that is currently hosting this

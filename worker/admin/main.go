@@ -502,7 +502,9 @@ func loadBalancer(ctx *cli.Context) error {
 	configFile := configPath(cluster, "load_balancer")
 	// allow the user to specify the port of the load balancer with the command
     balancerConfig, err := load_balancer.ReadConfig(configFile)
-	balancerConfig.Port = port
+	if balancerConfig.Port != 0 {
+		balancerConfig.Port = port
+	}
 	load_balancer.SaveConfig(balancerConfig, configFile)
 	logPath := logPath(cluster, "load_balancer.out")
 	f, err := os.Create(logPath)
@@ -967,7 +969,7 @@ OPTIONS:
 				cli.IntFlag{
 					Name:  "port, p",
 					Usage: "Port range [`PORT`, `PORT`+n) will be used for workers",
-					Value: 8081,
+					Value: 7081,
 				},
 				cli.IntFlag{
 					Name:  "num-workers, n",
@@ -1048,7 +1050,7 @@ OPTIONS:
 				cli.IntFlag{
 					Name:  "port, p",
 					Usage: "Exposed port of the load balancer, all requests are first submitted to it",
-					Value: 8079,
+					Value: 7079,
 				},
 			},
 			Action: loadBalancer,

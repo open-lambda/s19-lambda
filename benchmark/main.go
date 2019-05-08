@@ -61,7 +61,7 @@ type PerfMetrics struct{
 
 
 var LAMBDA_BASE = "hdl"
-var BENCHMARK_PREPARE_SCRIPT = "/mnt/lambda_scheduler/s19-lambda/benchmark/benchmark_prepare.sh"
+var BENCHMARK_PREPARE_SCRIPT = "/mnt/lb_lambda_scheduler/s19-lambda/benchmark/benchmark_prepare.sh"
 var RUN_LAMBDA_BASE = "/runLambda/"
 var lambdaCounter = 1
 
@@ -159,7 +159,11 @@ func genWorkload(config BenchmarkConfig) {
 		addLambdaRequests(WorkerPools[i], job)
 	}
 
+	start_time := time.Now().UnixNano()
 	runWorkload()
+	end_time := time.Now().UnixNano()
+	fmt.Printf("Total time: %v\n", (end_time - start_time)/1000000)
+
 	aggregateMetrics()
 }
 
@@ -256,12 +260,16 @@ func aggregateMetrics() {
 	metricsMap := genMetricsMap()
 	var coldStartMean = 0.0
 	var coldStartStd = 0.0
+	var overallSum = 0.0
+	var overallNum = 0.0
 	for lambda, metrics := range metricsMap {
 		var mean = 0.0
 		var std = 0.0
 
 		for _, v := range metrics {
 			mean += float64(v)
+			overallSum += float64(v)
+			overallNum += 1
 		}
 		// remove first cold start time
 		mean -= float64(metrics[0])
@@ -287,6 +295,7 @@ func aggregateMetrics() {
 	coldStartStd = math.Sqrt(coldStartStd/float64(len(metricsMap)))
 	fmt.Printf("Average cold start time: %f ms\n", coldStartMean)
 	fmt.Printf("Standard Deviation of cold start time: %f\n", coldStartStd)
+	fmt.Printf("Overall mean run time: %f ms\n", overallSum / overallNum)
 }
 
 func genMetricsMap() map[string]map[int]int64 {

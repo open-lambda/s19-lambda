@@ -46,7 +46,8 @@ type HttpResp struct{
 	ResponseHeader	map[string][]string
 	ResponseBody	[]byte
 	TotalMem	int
-	FreeMem		int
+	// FreeMem		int
+	UsedMem		int
 	CPUUsage	float64
 }
 
@@ -73,7 +74,8 @@ func NewServer(config *config.Config) (*Server, error) {
 
 // Joins return result from computation with server performance data in json format
 func (s *Server) JoinServerPerfData(result *http.Response) []byte {
-	totalMem, freeMem := mem_allfree()
+	// totalMem, freeMem := mem_allfree()
+	totalMem, usedMem := mem_allused()
 	CPUUsage := cpuusage()
 
 	resultHeader := result.Header
@@ -82,8 +84,9 @@ func (s *Server) JoinServerPerfData(result *http.Response) []byte {
 
 	resp := &HttpResp{
 		TotalMem:	totalMem,
-		FreeMem:	freeMem,
+		// FreeMem:	freeMem,
 		CPUUsage:	CPUUsage,
+		UsedMem:    usedMem,
 		ResponseCode: resultCode,
 		ResponseHeader:	resultHeader,
 		ResponseBody: resultBody}

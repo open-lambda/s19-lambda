@@ -136,13 +136,12 @@ func (proxy *Proxy)lardChooseServer(ignoreList []string, r *http.Request) *Serve
 func (proxy *Proxy) getLeastLoad(moveIndex bool) *Server{
 	var targetServer *Server = nil
 	var minLoad = 1.0
-	var startIdx = 0
+	LeastLoadMutex.Lock()
+	var startIdx = LeastLoadIdx
 	if moveIndex {
-		LeastLoadMutex.Lock()
-		startIdx = LeastLoadIdx
 		LeastLoadIdx = (LeastLoadIdx + 1) % len(proxy.Servers)
-		LeastLoadMutex.Unlock()
 	}
+	LeastLoadMutex.Unlock()
 	for i:=0; i < len(proxy.Servers); i++{
 		
 		server := &proxy.Servers[(startIdx + i) % len(proxy.Servers)]
@@ -203,8 +202,9 @@ func (proxy *Proxy)ReverseProxy(w http.ResponseWriter, r *http.Request, server *
 		proxy.MapLock.RLock()
 		targetServer, _ := proxy.RequestServerMap[path]
 		proxy.MapLock.RUnlock()
-		targetServer.CPUUsage = respStruct.CPUUsage
-		targetServer.MemUsage = 1.0 - float64(respStruct.FreeMem) / float64(respStruct.TotalMem)
+		targetServer.CPUUsage = respStruct.CPUUsage / 100
+		targetServer.MemUsage = float64(respStruct.UsedMem) / float64(respStruct.TotalMem)
+		LogInfo(fmt.Sprintf("Total mem: %f\n", float64(respStruct.TotalMem)))
 	}
 
 	LogInfo("Server load condition:")
@@ -212,7 +212,7 @@ func (proxy *Proxy)ReverseProxy(w http.ResponseWriter, r *http.Request, server *
 		// LogInfo("Piggybacked Info: ")
 		LogInfo(server.Name)
 		LogInfo(fmt.Sprintf("	Memory Usage: %f%%", server.MemUsage*100))
-		LogInfo(fmt.Sprintf("	CPU Usage: %f%%", server.CPUUsage))
+		LogInfo(fmt.Sprintf("	CPU Usage: %f%%", server.CPUUsage*100))
 		LogInfo(fmt.Sprintf("	Current Serving Requests: %d", server.Connections))
 	}
 

@@ -9,18 +9,25 @@
     "MaxConn": -1,
 	"Servers": [
 		{
-			"Name": "Server A",
+			"Name": "Server B",
 			"Scheme": "http",
-			"Host": "cp-2",
+			"Host": "cp-1",
 			"Port": 7081,
             "MaxConn": -1
 		}, 
 		{
 			"Name": "Server B",
 			"Scheme": "http",
+			"Host": "cp-2",
+			"Port": 7081,
+            "MaxConn": -1
+		},
+		{
+			"Name": "Server C",
+			"Scheme": "http",
 			"Host": "cp-3",
 			"Port": 7081,
             "MaxConn": -1
-		}
+		} 
 	]
 }

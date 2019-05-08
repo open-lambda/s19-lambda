@@ -147,8 +147,7 @@ var memLastUpdateTime time.Time = time.Now()
 func getMemUsage() int {
 	if (time.Since(memLastUpdateTime)) > time.Second {
 		v, _ := mem.VirtualMemory()
-		total, free := int(v.Total), int(v.Free)
-		memUsage = total - free
+		memUsage = int(v.Used)
 		memLastUpdateTime = time.Now()
 	}
 	return memUsage
@@ -370,6 +369,7 @@ func (h *Handler) RunStart() (ch *sb.Channel, err error) {
 			}
 			hms.sbCreatingQueue <- h
 			<-h.sbCreatingChan // waiting for wake-up signal
+			log.Println("Request wakes up")
             hms.sbCreatingLock.Lock()
 		}
 		hms.numSbCreating += 1
