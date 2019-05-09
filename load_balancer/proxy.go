@@ -4,13 +4,16 @@ import (
 	"net/http"
 	"net/url"
 	"io/ioutil"
-	// "bytes"
 	"strings"
 	"strconv"
 	"math"
 	"encoding/json"
 	"fmt"
 	"sync"
+
+	"os"
+	"bufio"
+	"time"
 
 	workerServer "github.com/open-lambda/s19-lambda/worker/server"
 )
@@ -135,7 +138,7 @@ func (proxy *Proxy)lardChooseServer(ignoreList []string, r *http.Request) *Serve
 
 func (proxy *Proxy) getLeastLoad(moveIndex bool) *Server{
 	var targetServer *Server = nil
-	var minLoad = 1.0
+	var minLoad = math.MaxFloat64
 	LeastLoadMutex.Lock()
 	var startIdx = LeastLoadIdx
 	if moveIndex {
@@ -298,5 +301,33 @@ func (proxy *Proxy)statusHandler(w http.ResponseWriter, r *http.Request) {
 	wbody := []byte("ready\n")
 	if _, err := w.Write(wbody); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+	}
+}
+
+func (proxy *Proxy)outputServerLoad() {
+	f, err := os.Create("/mnt/lb_lambda_scheduler/s19-lambda/server_load")
+	if err != nil {
+		LogErr("Failed to create server load log file.\n")
+	}
+
+	defer f.Close()
+
+	w := bufio.NewWriter(f)
+
+	w.WriteString("Time\t")
+	for i, _ := range proxy.Servers {
+		w.WriteString(fmt.Sprintf("Server_%d_Connections\tServer_%d_CPUUsage\tServer_%d_MemUsage\t", i, i, i))
+	}
+	w.WriteString("\n")
+
+	start_time := time.Now().UnixNano()
+
+	for {
+		w.WriteString(fmt.Sprintf("%f\t", (time.Now().UnixNano() - start_time)/1000000))
+		for _, server := range proxy.Servers {
+			w.WriteString(fmt.Sprintf("%d\t%f\t%f\t", server.Connections, server.CPUUsage, server.MemUsage))
+		}
+		time.Sleep(100 * time.Millisecond)
+		
 	}
 }

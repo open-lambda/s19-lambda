@@ -22,5 +22,6 @@ func Run(config_file string) {
         LogErrAndCrash("Make sure the port is available and not reserved")
     }
     LogInfo("Listening to requests on port: " + strconv.Itoa(proxy.Port))
+
 }
 

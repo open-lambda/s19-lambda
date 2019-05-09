@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"math"
 	"sync"
+	"fmt"
 )
 
 type Server struct {
@@ -38,6 +39,8 @@ func (server Server) GetLoad(loadFormula string) float64 {
 		load = math.Max(server.MemUsage, server.CPUUsage)
 	case "DominantResourceConnections":
 		load = math.Max(math.Max(server.MemUsage, server.CPUUsage), server.GetLoadByConn())
+		LogInfo(fmt.Sprintf("MemUsage: %f, CPUUsage: %f, ConnLoad: %f, load: %f", server.MemUsage, server.CPUUsage, server.GetLoadByConn, load))
+
 	case "Connections":
 		load = server.GetLoadByConn()
 	}
