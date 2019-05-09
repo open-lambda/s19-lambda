@@ -132,7 +132,7 @@ func NewHandlerManagerSet(opts *config.Config) (hms *HandlerManagerSet, err erro
 
 	hms.sbCreatingQueue = make(chan *Handler, opts.Sandbox_create_queue_size)
 
-	hms.lru = NewHandlerLRU(hms, opts.Handler_cache_size) //kb
+	hms.lru = NewHandlerLRU(hms, opts.Handler_cache_size, opts.Handler_cache_evict_prob) //kb
 
 	go hms.updateAvgHandlerMemUsage(opts.Handler_usage_update_interval)
 
@@ -197,6 +197,12 @@ func (hms *HandlerManagerSet) scheduleSbCreatingReqs() {
 			}
 		}
 		hms.sbCreatingLock.Unlock()
+
+		// for debug
+		// hms.lru.mutex.Lock()
+		// log.Printf("HandlerLRU size: %v used / %v limit", hms.lru.size, hms.lru.soft_limit)
+		// hms.lru.mutex.Unlock()
+
 		time.Sleep(100 * time.Millisecond) // poll every 100ms
 	}
 }

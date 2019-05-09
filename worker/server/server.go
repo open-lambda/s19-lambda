@@ -91,12 +91,10 @@ func (s *Server) JoinServerPerfData(result *http.Response) []byte {
 		ResponseHeader:	resultHeader,
 		ResponseBody: resultBody}
 
-	log.Print(resp)
 	jsonResp, err := json.Marshal(resp)
 	if err != nil{
 		log.Print(err)
 	}
-	log.Print(string(jsonResp))
 
 	return jsonResp
 }

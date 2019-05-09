@@ -44,6 +44,8 @@ type Config struct {
 
 	// cache options
 	Handler_cache_size int `json:"handler_cache_size"` //kb
+	// probability to evict the last handler when sum of idle handler usage exceeds cache size
+	Handler_cache_evict_prob float64 `json:"Handler_cache_evict_prob"`
 	Import_cache_size  int `json:"import_cache_size"`  //kb
 
 	// mem usage limit for creating sandboxes
@@ -142,6 +144,10 @@ func (c *Config) Defaults() error {
 
 	if c.Handler_usage_update_interval == 0 {
 		c.Handler_usage_update_interval = 10
+	}
+
+	if c.Handler_cache_evict_prob == 0.0 {
+		c.Handler_cache_evict_prob = 1.0
 	}
 
 	if !path.IsAbs(c.Registry_dir) {
