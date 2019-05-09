@@ -260,6 +260,7 @@ func aggregateMetrics() {
 	metricsMap := genMetricsMap()
 	var coldStartMean = 0.0
 	var coldStartStd = 0.0
+	var warmStartMean = 0.0
 	var overallSum = 0.0
 	var overallNum = 0.0
 	for lambda, metrics := range metricsMap {
@@ -276,6 +277,7 @@ func aggregateMetrics() {
 		mean = mean / float64(len(metrics)-1)
 
 		coldStartMean += float64(metrics[0])
+		warmStartMean += mean
 
 		for _, v := range metrics {
 			std += math.Pow(float64(v)-mean, 2)
@@ -293,8 +295,9 @@ func aggregateMetrics() {
 		coldStartStd += math.Pow(float64(metrics[0])-coldStartMean, 2)
 	}
 	coldStartStd = math.Sqrt(coldStartStd/float64(len(metricsMap)))
+	warmStartMean /= float64(len(metricsMap))
 	fmt.Printf("Average cold start time: %f ms\n", coldStartMean)
-	fmt.Printf("Standard Deviation of cold start time: %f\n", coldStartStd)
+	fmt.Printf("Average warm start time: %f ms\n", warmStartMean)
 	fmt.Printf("Overall mean run time: %f ms\n", overallSum / overallNum)
 }
 

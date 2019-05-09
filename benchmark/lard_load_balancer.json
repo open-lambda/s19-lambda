@@ -2,32 +2,18 @@
 	"Host": "localhost",
 	"Port": 7079,
 	"Scheme": "http",
-    "Policy": "LARD",
+    "Policy": "RoundRobin",
     "LoadFormula": "Connections",
     "LoadHigh": 0.4,
     "LoadLow": 0.2,
     "MaxConn": -1,
 	"Servers": [
 		{
-			"Name": "Server B",
+			"Name": "Server A",
 			"Scheme": "http",
 			"Host": "cp-1",
 			"Port": 7081,
             "MaxConn": -1
-		}, 
-		{
-			"Name": "Server B",
-			"Scheme": "http",
-			"Host": "cp-2",
-			"Port": 7081,
-            "MaxConn": -1
-		},
-		{
-			"Name": "Server C",
-			"Scheme": "http",
-			"Host": "cp-3",
-			"Port": 7081,
-            "MaxConn": -1
-		} 
+		}
 	]
 }

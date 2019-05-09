@@ -33,7 +33,7 @@ for i in $( eval echo {1..$num_of_machines}); do
 	ssh root@${machine} "make -C $openlambda_path clean"
 	ssh root@${machine} "make -C $openlambda_path"
 	ssh root@${machine} "cd ${openlambda_path}; ./bin/admin new --cluster=my-cluster"
-	ssh root@${machine} "pip2 install -r /mnt/pipbench/requirements.txt  --index-url http://localhost:9199/simple/ --target=/mnt/lb_lambda_scheduler/s19-lambda/my-cluster/base/packages"
+	# ssh root@${machine} "pip2 install -r /mnt/pipbench/requirements.txt  --index-url http://localhost:9199/simple/ --target=/mnt/lb_lambda_scheduler/s19-lambda/my-cluster/base/packages"
 	scp ${openlambda_path}/benchmark/template.json root@${machine}:${openlambda_path}/my-cluster/config/template.json
 
 	# dump lambda code

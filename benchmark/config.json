@@ -3,16 +3,14 @@
    "port": 7079,
    "olPath": "/mnt/lb_lambda_scheduler/s19-lambda",
    "registryMachines": [
-         "c220g2-011026.wisc.cloudlab.us",
-         "c220g2-011027.wisc.cloudlab.us",
-         "c220g2-011025.wisc.cloudlab.us"
+         "c220g2-011026.wisc.cloudlab.us"
    ],
    "cmds": [
       {
          "cmd": "{\"input\":\"hello\"}",
          "numThreads": 1,
-         "cmdPerLambda": 4,
-         "numLambdas": 100
+         "cmdPerLambda": 3,
+         "numLambdas": 11
       }
    ]
 }

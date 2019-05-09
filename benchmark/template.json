@@ -1,6 +1,6 @@
 {
 	"registry": "local",
-	"sandbox": "sock",
+	"sandbox": "docker",
 	"registry_dir": "/mnt/lb_lambda_scheduler/s19-lambda/my-cluster/registry",
 	"registry_server": "",
 	"registry_access_key": "",
@@ -9,7 +9,7 @@
 	"pip_mirror": "http://localhost:9199/simple/",
 	"Pkgs_dir": "/mnt/lb_lambda_scheduler/s19-lambda/my-cluster/base/packages",
 	"max_runners": 0,
-	"handler_cache_size": 4096000,
+	"handler_cache_size": 400000,
 	"import_cache_size": 0,
 	"worker_dir": "/mnt/lb_lambda_scheduler/s19-lambda/my-cluster/workers/default",
 	"SOCK_base_path": "/mnt/lb_lambda_scheduler/s19-lambda/my-cluster/base",
